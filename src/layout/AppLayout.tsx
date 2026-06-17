@@ -5,7 +5,7 @@ import { Outlet, useNavigate } from "react-router-dom";
 import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
 import AppSidebar from "./AppSidebar";
-import { ShieldAlert, X } from "lucide-react";
+import { ShieldAlert, X, Loader2 } from "lucide-react";
 
 const LayoutContent: React.FC = () => {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
@@ -15,17 +15,34 @@ const LayoutContent: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
 
+  // Global loading states
+  const [globalLoading, setGlobalLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Memproses data...");
+
   useEffect(() => {
-    // 1. Listen to custom trigger event from any page
+    // 1. Listen to custom trigger event from any page for Auth Modal
     const handleShowModal = (e: Event) => {
       const customEvent = e as CustomEvent;
       setModalMessage(customEvent.detail?.message || "Silakan login untuk mengakses fitur penuh.");
       setShowAuthModal(true);
     };
 
-    window.addEventListener("show-auth-modal", handleShowModal);
+    // 2. Listen to custom trigger events for Global Loading
+    const handleShowLoading = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      setLoadingMessage(customEvent.detail?.message || "Memproses data...");
+      setGlobalLoading(true);
+    };
 
-    // 2. Global duration timer (45 seconds for guests)
+    const handleHideLoading = () => {
+      setGlobalLoading(false);
+    };
+
+    window.addEventListener("show-auth-modal", handleShowModal);
+    window.addEventListener("show-global-loading", handleShowLoading);
+    window.addEventListener("hide-global-loading", handleHideLoading);
+
+    // 3. Global duration timer (45 seconds for guests)
     const userJson = localStorage.getItem("clickaset_user");
     const alreadyPrompted = sessionStorage.getItem("clickaset_auth_prompted");
 
@@ -40,6 +57,8 @@ const LayoutContent: React.FC = () => {
 
     return () => {
       window.removeEventListener("show-auth-modal", handleShowModal);
+      window.removeEventListener("show-global-loading", handleShowLoading);
+      window.removeEventListener("hide-global-loading", handleHideLoading);
       if (timer) clearTimeout(timer);
     };
   }, []);
@@ -113,6 +132,18 @@ const LayoutContent: React.FC = () => {
                 Nanti Saja, Saya Ingin Browsing Dulu
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Glassmorphism Loading Overlay */}
+      {globalLoading && (
+        <div className="fixed inset-0 z-999999 flex flex-col items-center justify-center p-4 bg-black/50 backdrop-blur-md transition-all duration-300">
+          <div className="flex flex-col items-center space-y-4 p-6 rounded-2xl bg-white/80 dark:bg-gray-955/80 border border-white/20 dark:border-gray-800 shadow-2xl text-center max-w-xs w-full">
+            <Loader2 className="w-10 h-10 text-brand-500 animate-spin" />
+            <p className="text-sm font-bold text-gray-850 dark:text-gray-200">
+              {loadingMessage}
+            </p>
           </div>
         </div>
       )}

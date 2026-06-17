@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../utils/supabaseClient";
+import { showLoading, hideLoading } from "../utils/loader";
 import { 
   Users, 
   Play, 
@@ -126,6 +127,7 @@ const defaultQuestions: Question[] = [
 const Kuis: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [studentGuestName, setStudentGuestName] = useState("");
+  const [loading, setLoading] = useState(true);
   
   // Data lists
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -253,11 +255,18 @@ const Kuis: React.FC = () => {
   };
 
   const fetchQuizzesAndQuestions = async () => {
-    const { data: qData } = await supabase.from("quizzes").select("*");
-    if (qData) setQuizzes(qData);
+    setLoading(true);
+    try {
+      const { data: qData } = await supabase.from("quizzes").select("*");
+      if (qData) setQuizzes(qData);
 
-    const { data: questData } = await supabase.from("questions").select("*").order("order_index", { ascending: true });
-    if (questData) setQuestions(questData);
+      const { data: questData } = await supabase.from("questions").select("*").order("order_index", { ascending: true });
+      if (questData) setQuestions(questData);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const refreshRoomState = async () => {
@@ -296,19 +305,33 @@ const Kuis: React.FC = () => {
       teacher_id: user?.id || "guru-default-id"
     };
 
-    await supabase.from("quizzes").insert(newQuiz);
-    fetchQuizzesAndQuestions();
-    setShowCreateQuiz(false);
-    setNewQuizTitle("");
-    setNewQuizDesc("");
+    showLoading("Membuat kuis baru...");
+    try {
+      await supabase.from("quizzes").insert(newQuiz);
+      await fetchQuizzesAndQuestions();
+      setShowCreateQuiz(false);
+      setNewQuizTitle("");
+      setNewQuizDesc("");
+    } catch (err: any) {
+      alert("Gagal membuat kuis: " + err.message);
+    } finally {
+      hideLoading();
+    }
   };
 
   const handleDeleteQuiz = async (id: string) => {
     if (window.confirm("Apakah Anda yakin ingin menghapus kuis ini beserta soal-soalnya?")) {
-      await supabase.from("quizzes").delete().eq("id", id);
-      fetchQuizzesAndQuestions();
-      if (activeQuizForQuestions?.id === id) {
-        setActiveQuizForQuestions(null);
+      showLoading("Menghapus kuis...");
+      try {
+        await supabase.from("quizzes").delete().eq("id", id);
+        await fetchQuizzesAndQuestions();
+        if (activeQuizForQuestions?.id === id) {
+          setActiveQuizForQuestions(null);
+        }
+      } catch (err: any) {
+        alert("Gagal menghapus kuis: " + err.message);
+      } finally {
+        hideLoading();
       }
     }
   };
@@ -330,20 +353,34 @@ const Kuis: React.FC = () => {
       order_index: questions.filter(q => q.quiz_id === activeQuizForQuestions.id).length + 1
     };
 
-    await supabase.from("questions").insert(newQuest);
-    fetchQuizzesAndQuestions();
-    setShowAddQuestion(false);
-    setNewQText("");
-    setNewQOpts(["", "", "", ""]);
-    setNewQCorrect(0);
-    setNewQTimer(30);
-    setNewQExpl("");
+    showLoading("Menambahkan soal...");
+    try {
+      await supabase.from("questions").insert(newQuest);
+      await fetchQuizzesAndQuestions();
+      setShowAddQuestion(false);
+      setNewQText("");
+      setNewQOpts(["", "", "", ""]);
+      setNewQCorrect(0);
+      setNewQTimer(30);
+      setNewQExpl("");
+    } catch (err: any) {
+      alert("Gagal menambahkan soal: " + err.message);
+    } finally {
+      hideLoading();
+    }
   };
 
   const handleDeleteQuestion = async (id: string) => {
     if (window.confirm("Hapus soal ini?")) {
-      await supabase.from("questions").delete().eq("id", id);
-      fetchQuizzesAndQuestions();
+      showLoading("Menghapus soal...");
+      try {
+        await supabase.from("questions").delete().eq("id", id);
+        await fetchQuizzesAndQuestions();
+      } catch (err: any) {
+        alert("Gagal menghapus soal: " + err.message);
+      } finally {
+        hideLoading();
+      }
     }
   };
 
@@ -356,25 +393,46 @@ const Kuis: React.FC = () => {
       status: "LOBBY"
     };
 
-    await supabase.from("rooms").insert(newRoom);
-    // Fetch newly created room
-    const { data: dbRooms } = await supabase.from("rooms").select("*").eq("room_code", code).single();
-    if (dbRooms) {
-      setMyRoom(dbRooms);
-      setParticipants([]);
+    showLoading("Membuka room kuis baru...");
+    try {
+      await supabase.from("rooms").insert(newRoom);
+      // Fetch newly created room
+      const { data: dbRooms } = await supabase.from("rooms").select("*").eq("room_code", code).single();
+      if (dbRooms) {
+        setMyRoom(dbRooms);
+        setParticipants([]);
+      }
+    } catch (err: any) {
+      alert("Gagal membuka room kuis: " + err.message);
+    } finally {
+      hideLoading();
     }
   };
 
   const handleStartQuiz = async () => {
     if (!myRoom) return;
-    await supabase.from("rooms").update({ status: "PLAYING" }).eq("id", myRoom.id);
-    refreshRoomState();
+    showLoading("Memulai kuis...");
+    try {
+      await supabase.from("rooms").update({ status: "PLAYING" }).eq("id", myRoom.id);
+      await refreshRoomState();
+    } catch (err: any) {
+      alert("Gagal memulai kuis: " + err.message);
+    } finally {
+      hideLoading();
+    }
   };
 
   const handleEndQuiz = async () => {
     if (!myRoom) return;
-    await supabase.from("rooms").update({ status: "FINISHED" }).eq("id", myRoom.id);
-    refreshRoomState();
+    showLoading("Mengakhiri kuis...");
+    try {
+      await supabase.from("rooms").update({ status: "FINISHED" }).eq("id", myRoom.id);
+      await refreshRoomState();
+    } catch (err: any) {
+      alert("Gagal mengakhiri kuis: " + err.message);
+    } finally {
+      hideLoading();
+    }
   };
 
   // ----------------------------------------------------
@@ -397,44 +455,51 @@ const Kuis: React.FC = () => {
       return;
     }
 
-    // Check if room exists and is in LOBBY
-    const { data: dbRoom } = await supabase.from("rooms").select("*").eq("room_code", roomCodeInput).single();
-    
-    if (!dbRoom) {
-      alert("Kode Room tidak ditemukan! Periksa kembali kode dari Guru.");
-      return;
+    showLoading("Bergabung ke room kuis...");
+    try {
+      // Check if room exists and is in LOBBY
+      const { data: dbRoom } = await supabase.from("rooms").select("*").eq("room_code", roomCodeInput).single();
+      
+      if (!dbRoom) {
+        alert("Kode Room tidak ditemukan! Periksa kembali kode dari Guru.");
+        return;
+      }
+
+      if (dbRoom.status === "FINISHED") {
+        alert("Kuis ini telah selesai diselenggarakan.");
+        return;
+      }
+
+      // Join room as participant
+      const newParticipant = {
+        room_id: dbRoom.id,
+        user_id: user?.id || null,
+        username: nickname,
+        score: 0,
+        current_question_index: 0
+      };
+
+      await supabase.from("participants").insert(newParticipant);
+      setMyRoom(dbRoom);
+      setQuizState({
+        status: "LOBBY",
+        currentIndex: 0,
+        score: 0,
+        selectedOption: null,
+        answered: false,
+        timeLeft: 30,
+        showExplanation: false,
+        earnedPoints: 0
+      });
+      
+      // Refresh participant list
+      const { data: parts } = await supabase.from("participants").select("*").eq("room_id", dbRoom.id);
+      if (parts) setParticipants(parts);
+    } catch (err: any) {
+      alert("Gagal bergabung ke room: " + err.message);
+    } finally {
+      hideLoading();
     }
-
-    if (dbRoom.status === "FINISHED") {
-      alert("Kuis ini telah selesai diselenggarakan.");
-      return;
-    }
-
-    // Join room as participant
-    const newParticipant = {
-      room_id: dbRoom.id,
-      user_id: user?.id || null,
-      username: nickname,
-      score: 0,
-      current_question_index: 0
-    };
-
-    await supabase.from("participants").insert(newParticipant);
-    setMyRoom(dbRoom);
-    setQuizState({
-      status: "LOBBY",
-      currentIndex: 0,
-      score: 0,
-      selectedOption: null,
-      answered: false,
-      timeLeft: 30,
-      showExplanation: false,
-      earnedPoints: 0
-    });
-    
-    // Refresh participant list
-    const { data: parts } = await supabase.from("participants").select("*").eq("room_id", dbRoom.id);
-    if (parts) setParticipants(parts);
   };
 
   const handleSubmitAnswer = async (selectedIdx: number, correctIdx: number, timeLimit: number) => {
@@ -609,7 +674,17 @@ const Kuis: React.FC = () => {
 
               {/* Quiz list rendering */}
               <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
-                {quizzes.map(q => (
+                {loading ? (
+                  /* Skeleton List Loading */
+                  <div className="space-y-2 animate-pulse">
+                    {[1, 2].map(i => (
+                      <div key={i} className="p-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-55 dark:bg-gray-900/40 space-y-2">
+                        <div className="h-4 w-2/3 bg-gray-200 dark:bg-gray-800 rounded" />
+                        <div className="h-3 w-full bg-gray-200 dark:bg-gray-800 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                ) : quizzes.map(q => (
                   <div 
                     key={q.id}
                     className={`p-3 rounded-lg border transition-all text-left flex items-start justify-between gap-2 cursor-pointer ${

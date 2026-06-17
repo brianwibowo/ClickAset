@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { User, Lock, Phone, ArrowLeft } from "lucide-react";
 import { supabase } from "../utils/supabaseClient";
+import { showLoading, hideLoading } from "../utils/loader";
 
 const SignIn: React.FC = () => {
   const navigate = useNavigate();
@@ -61,57 +62,64 @@ const SignIn: React.FC = () => {
       return;
     }
 
-    // Default bypass logins for easy offline/demo testing
-    if (usernameOrPhone.toLowerCase() === "guru" && password === "guru") {
-      const defaultGuru = {
-        username: "guru",
-        phone_number: "08123456789",
-        full_name: "Ibu Indah (Guru Akuntansi)",
-        role: "GURU",
-      };
-      localStorage.setItem("clickaset_user", JSON.stringify(defaultGuru));
-      setSuccess("Login Guru default berhasil!");
-      setTimeout(() => {
-        navigate("/");
-        window.location.reload();
-      }, 1000);
-      return;
-    } else if (usernameOrPhone.toLowerCase() === "siswa" && password === "siswa") {
-      const defaultSiswa = {
-        username: "siswa",
-        phone_number: "08987654321",
-        full_name: "Budi Pratama",
-        role: "SISWA",
-      };
-      localStorage.setItem("clickaset_user", JSON.stringify(defaultSiswa));
-      setSuccess("Login Siswa default berhasil!");
-      setTimeout(() => {
-        navigate("/");
-        window.location.reload();
-      }, 1000);
-      return;
-    }
+    showLoading("Masuk ke akun Anda...");
+    try {
+      // Default bypass logins for easy offline/demo testing
+      if (usernameOrPhone.toLowerCase() === "guru" && password === "guru") {
+        const defaultGuru = {
+          username: "guru",
+          phone_number: "08123456789",
+          full_name: "Ibu Indah (Guru Akuntansi)",
+          role: "GURU",
+        };
+        localStorage.setItem("clickaset_user", JSON.stringify(defaultGuru));
+        setSuccess("Login Guru default berhasil!");
+        setTimeout(() => {
+          navigate("/");
+          window.location.reload();
+        }, 1000);
+        return;
+      } else if (usernameOrPhone.toLowerCase() === "siswa" && password === "siswa") {
+        const defaultSiswa = {
+          username: "siswa",
+          phone_number: "08987654321",
+          full_name: "Budi Pratama",
+          role: "SISWA",
+        };
+        localStorage.setItem("clickaset_user", JSON.stringify(defaultSiswa));
+        setSuccess("Login Siswa default berhasil!");
+        setTimeout(() => {
+          navigate("/");
+          window.location.reload();
+        }, 1000);
+        return;
+      }
 
-    // Query from Supabase/Mock database
-    const { data: users } = await supabase.from("users").select("*");
-    const registeredUsers = users || [];
+      // Query from Supabase/Mock database
+      const { data: users } = await supabase.from("users").select("*");
+      const registeredUsers = users || [];
 
-    const foundUser = registeredUsers.find(
-      (u: any) =>
-        (u.username.toLowerCase() === usernameOrPhone.toLowerCase() ||
-          u.phone_number === usernameOrPhone) &&
-        u.password === password
-    );
+      const foundUser = registeredUsers.find(
+        (u: any) =>
+          (u.username.toLowerCase() === usernameOrPhone.toLowerCase() ||
+            u.phone_number === usernameOrPhone) &&
+          u.password === password
+      );
 
-    if (foundUser) {
-      localStorage.setItem("clickaset_user", JSON.stringify(foundUser));
-      setSuccess("Login berhasil! Mengalihkan...");
-      setTimeout(() => {
-        navigate("/");
-        window.location.reload();
-      }, 1000);
-    } else {
-      setError("Username/Nomor HP atau kata sandi salah.");
+      if (foundUser) {
+        localStorage.setItem("clickaset_user", JSON.stringify(foundUser));
+        setSuccess("Login berhasil! Mengalihkan...");
+        setTimeout(() => {
+          navigate("/");
+          window.location.reload();
+        }, 1000);
+      } else {
+        setError("Username/Nomor HP atau kata sandi salah.");
+      }
+    } catch (err: any) {
+      setError("Terjadi kesalahan koneksi: " + err.message);
+    } finally {
+      hideLoading();
     }
   };
 
@@ -125,34 +133,41 @@ const SignIn: React.FC = () => {
       return;
     }
 
-    if (resetUsername === "guru" || resetUsername === "siswa") {
-      setSuccess("Kata sandi default tidak dapat diubah, silakan langsung login.");
-      setIsResetMode(false);
-      return;
-    }
+    showLoading("Memproses atur ulang sandi...");
+    try {
+      if (resetUsername === "guru" || resetUsername === "siswa") {
+        setSuccess("Kata sandi default tidak dapat diubah, silakan langsung login.");
+        setIsResetMode(false);
+        return;
+      }
 
-    // Query from Supabase/Mock database
-    const { data: users } = await supabase.from("users").select("*");
-    const registeredUsers = users || [];
+      // Query from Supabase/Mock database
+      const { data: users } = await supabase.from("users").select("*");
+      const registeredUsers = users || [];
 
-    const foundUser = registeredUsers.find(
-      (u: any) =>
-        u.username.toLowerCase() === resetUsername.toLowerCase() &&
-        u.phone_number === resetPhone
-    );
+      const foundUser = registeredUsers.find(
+        (u: any) =>
+          u.username.toLowerCase() === resetUsername.toLowerCase() &&
+          u.phone_number === resetPhone
+      );
 
-    if (foundUser) {
-      await supabase
-        .from("users")
-        .update({ password: newPassword })
-        .eq("id", foundUser.id);
+      if (foundUser) {
+        await supabase
+          .from("users")
+          .update({ password: newPassword })
+          .eq("id", foundUser.id);
 
-      setSuccess("Kata sandi berhasil diperbarui! Silakan login.");
-      setIsResetMode(false);
-      setUsernameOrPhone(resetUsername);
-      setPassword("");
-    } else {
-      setError("Kombinasi Username dan Nomor HP tidak terdaftar.");
+        setSuccess("Kata sandi berhasil diperbarui! Silakan login.");
+        setIsResetMode(false);
+        setUsernameOrPhone(resetUsername);
+        setPassword("");
+      } else {
+        setError("Kombinasi Username dan Nomor HP tidak terdaftar.");
+      }
+    } catch (err: any) {
+      setError("Gagal reset sandi: " + err.message);
+    } finally {
+      hideLoading();
     }
   };
 

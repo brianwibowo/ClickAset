@@ -9,6 +9,7 @@ import {
   UserCircleIcon
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
+import { LogOut } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -142,17 +143,44 @@ const AppSidebar: React.FC = () => {
 
       {/* Account Info / Footer */}
       <div className="py-6 border-t border-gray-200 dark:border-gray-800">
-        <Link
-          to="/signin"
-          className={`menu-item group ${
-            isActive("/signin") ? "menu-item-active" : "menu-item-inactive"
-          }`}
-        >
-          <span className="menu-item-icon-size">
-            <UserCircleIcon />
-          </span>
-          {showLabel && <span className="menu-item-text">Masuk / Daftar</span>}
-        </Link>
+        {(() => {
+          const userJson = localStorage.getItem("clickaset_user");
+          const user = userJson ? JSON.parse(userJson) : null;
+
+          if (user) {
+            return (
+              /* Logout Button */
+              <button
+                onClick={() => {
+                  if (window.confirm("Apakah Anda yakin ingin keluar?")) {
+                    localStorage.removeItem("clickaset_user");
+                    window.location.href = "/";
+                  }
+                }}
+                className="w-full menu-item group text-red-500 hover:text-red-650 hover:bg-red-50/10 cursor-pointer flex items-center gap-3 border-none bg-transparent"
+              >
+                <span className="menu-item-icon-size shrink-0">
+                  <LogOut className="w-5 h-5 text-red-500" />
+                </span>
+                {showLabel && <span className="menu-item-text text-red-500 font-bold">Keluar</span>}
+              </button>
+            );
+          } else {
+            return (
+              <Link
+                to="/signin"
+                className={`menu-item group ${
+                  isActive("/signin") ? "menu-item-active" : "menu-item-inactive"
+                }`}
+              >
+                <span className="menu-item-icon-size">
+                  <UserCircleIcon />
+                </span>
+                {showLabel && <span className="menu-item-text">Masuk / Daftar</span>}
+              </Link>
+            );
+          }
+        })()}
       </div>
     </aside>
   );

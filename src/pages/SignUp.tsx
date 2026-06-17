@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { User, Lock, Phone, ArrowLeft } from "lucide-react";
 import { supabase } from "../utils/supabaseClient";
+import { showLoading, hideLoading } from "../utils/loader";
 
 const SignUp: React.FC = () => {
   const navigate = useNavigate();
@@ -28,40 +29,47 @@ const SignUp: React.FC = () => {
       return;
     }
 
-    // Query existing users from database
-    const { data: users } = await supabase.from("users").select("*");
-    const registeredUsers = users || [];
+    showLoading("Mendaftarkan akun baru...");
+    try {
+      // Query existing users from database
+      const { data: users } = await supabase.from("users").select("*");
+      const registeredUsers = users || [];
 
-    const isDuplicate = registeredUsers.some(
-      (u: any) =>
-        u.username.toLowerCase() === username.toLowerCase() ||
-        u.phone_number === phoneNumber
-    );
+      const isDuplicate = registeredUsers.some(
+        (u: any) =>
+          u.username.toLowerCase() === username.toLowerCase() ||
+          u.phone_number === phoneNumber
+      );
 
-    if (isDuplicate) {
-      setError("Username atau Nomor HP sudah terdaftar.");
-      return;
+      if (isDuplicate) {
+        setError("Username atau Nomor HP sudah terdaftar.");
+        return;
+      }
+
+      const newUser = {
+        username,
+        phone_number: phoneNumber,
+        full_name: fullName,
+        password,
+        role,
+      };
+
+      const { error: insertError } = await supabase.from("users").insert(newUser);
+
+      if (insertError) {
+        setError("Registrasi gagal: " + insertError.message);
+        return;
+      }
+
+      setSuccess("Pendaftaran berhasil! Mengalihkan ke login...");
+      setTimeout(() => {
+        navigate("/signin");
+      }, 1200);
+    } catch (err: any) {
+      setError("Koneksi gagal: " + err.message);
+    } finally {
+      hideLoading();
     }
-
-    const newUser = {
-      username,
-      phone_number: phoneNumber,
-      full_name: fullName,
-      password,
-      role,
-    };
-
-    const { error: insertError } = await supabase.from("users").insert(newUser);
-
-    if (insertError) {
-      setError("Registrasi gagal: " + insertError.message);
-      return;
-    }
-
-    setSuccess("Pendaftaran berhasil! Mengalihkan ke login...");
-    setTimeout(() => {
-      navigate("/signin");
-    }, 1200);
   };
 
 

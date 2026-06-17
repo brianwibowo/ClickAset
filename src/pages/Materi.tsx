@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
-import { 
-  BookOpen, 
-  Edit, 
-  Trash2, 
-  Plus, 
-  Save, 
-  X, 
-  Video, 
-  Award, 
-  Activity, 
+import {
+  BookOpen,
+  Edit,
+  Trash2,
+  Plus,
+  Save,
+  X,
+  Video,
+  Award,
+  Activity,
   Users,
   Search,
   HelpCircle,
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../utils/supabaseClient";
 import materiPdf from "../assets/Materi perpajakan.pdf";
+import { showLoading, hideLoading } from "../utils/loader";
 
 type Material = {
   id: string;
@@ -35,7 +36,7 @@ type ContentBlock =
 
 const defaultMaterials: Material[] = [
   {
-    id: "def-1",
+    id: "d3b07384-d113-43d6-a5cc-ef6113b2c1a1",
     category: "DEFINISI",
     title: "Definisi & Karakteristik Aset Tetap",
     content: JSON.stringify([
@@ -63,7 +64,7 @@ Penyusutan (Depresiasi) adalah alokasi sistematis jumlah yang dapat disusutkan d
     order_index: 1
   },
   {
-    id: "kel-1",
+    id: "d3b07384-d113-43d6-a5cc-ef6113b2c1a2",
     category: "KELOMPOK",
     title: "Kelompok Harta Berwujud Perpajakan",
     content: JSON.stringify([
@@ -112,7 +113,7 @@ II. BANGUNAN:
     order_index: 2
   },
   {
-    id: "sak-1",
+    id: "d3b07384-d113-43d6-a5cc-ef6113b2c1a3",
     category: "SAK",
     title: "Metode Penyusutan Menurut SAK",
     content: JSON.stringify([
@@ -152,7 +153,7 @@ II. BANGUNAN:
     order_index: 3
   },
   {
-    id: "pajak-1",
+    id: "d3b07384-d113-43d6-a5cc-ef6113b2c1a4",
     category: "PAJAK",
     title: "Metode Penyusutan Menurut Pajak",
     content: JSON.stringify([
@@ -200,7 +201,7 @@ const taxGroups = [
 // Helper to parse YouTube IDs and convert them to secure embed URLs
 const getEmbedUrl = (url: string) => {
   if (!url) return "";
-  
+
   // Extract YouTube video ID
   let videoId = "";
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
@@ -319,6 +320,7 @@ const uploadFile = async (file: File): Promise<string> => {
 const Materi: React.FC = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [activeCategory, setActiveCategory] = useState<"DEFINISI" | "KELOMPOK" | "SAK" | "PAJAK">("DEFINISI");
+  const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
 
   // Form states for Create/Edit
@@ -353,14 +355,23 @@ const Materi: React.FC = () => {
     fetchMaterials();
   }, []);
   const fetchMaterials = async () => {
-    // Fetch from Supabase / LocalStorage Mock
-    const { data } = await supabase.from("materials").select("*").order("order_index", { ascending: true });
-    if (data && data.length > 0) {
+    setLoading(true);
+    try {
+      // Fetch from Supabase / LocalStorage Mock
+      const { data, error } = await supabase.from("materials").select("*").order("order_index", { ascending: true });
+
+      if (error) {
+        console.error("Gagal mengambil data materi dari database:", error);
+        setMaterials(defaultMaterials);
+        return;
+      }
+
+      if (data && data.length > 0) {
       // Auto-update the default entries with the new block-based content format if they still have the old defaults
       let needsUpdate = false;
       const updatedData = data.map((m: any) => {
         // Migration for def-1
-        if (m.id === "def-1" && !m.content.trim().startsWith("[")) {
+        if ((m.id === "def-1" || m.id === "d3b07384-d113-43d6-a5cc-ef6113b2c1a1") && !m.content.trim().startsWith("[")) {
           m.content = JSON.stringify([
             {
               id: "def-b1",
@@ -387,7 +398,7 @@ Penyusutan (Depresiasi) adalah alokasi sistematis jumlah yang dapat disusutkan d
         }
 
         // Migration for kel-1
-        if (m.id === "kel-1" && !m.content.trim().startsWith("[")) {
+        if ((m.id === "kel-1" || m.id === "d3b07384-d113-43d6-a5cc-ef6113b2c1a2") && !m.content.trim().startsWith("[")) {
           m.content = JSON.stringify([
             {
               id: "kel-b1",
@@ -435,7 +446,7 @@ II. BANGUNAN:
         }
 
         // Migration for sak-1
-        if (m.id === "sak-1" && !m.content.trim().startsWith("[")) {
+        if ((m.id === "sak-1" || m.id === "d3b07384-d113-43d6-a5cc-ef6113b2c1a3") && !m.content.trim().startsWith("[")) {
           m.content = JSON.stringify([
             {
               id: "sak-b1",
@@ -474,7 +485,7 @@ II. BANGUNAN:
         }
 
         // Migration for pajak-1
-        if (m.id === "pajak-1" && !m.content.trim().startsWith("[")) {
+        if ((m.id === "pajak-1" || m.id === "d3b07384-d113-43d6-a5cc-ef6113b2c1a4") && !m.content.trim().startsWith("[")) {
           m.content = JSON.stringify([
             {
               id: "pajak-b1",
@@ -501,17 +512,25 @@ Aturan Kunci Penyusutan Pajak:
         return m;
       });
 
-      if (needsUpdate) {
-        for (const m of updatedData) {
-          await supabase.from("materials").update({ content: m.content, video_url: m.video_url }).eq("id", m.id);
+        if (needsUpdate) {
+          for (const m of updatedData) {
+            await supabase.from("materials").update({ content: m.content, video_url: m.video_url }).eq("id", m.id);
+          }
+          setMaterials(updatedData);
+        } else {
+          setMaterials(data);
         }
-        setMaterials(updatedData);
       } else {
-        setMaterials(data);
+        const { error: seedError } = await supabase.from("materials").insert(defaultMaterials);
+        if (seedError) {
+          console.error("Gagal melakukan seeding default materials:", seedError);
+        }
+        setMaterials(defaultMaterials);
       }
-    } else {
-      await supabase.from("materials").insert(defaultMaterials);
-      setMaterials(defaultMaterials);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -534,8 +553,19 @@ Aturan Kunci Penyusutan Pajak:
 
   const handleDelete = async (id: string) => {
     if (window.confirm("Apakah Anda yakin ingin menghapus materi ini?")) {
-      await supabase.from("materials").delete().eq("id", id);
-      fetchMaterials();
+      showLoading("Menghapus materi pembelajaran...");
+      try {
+        const { error } = await supabase.from("materials").delete().eq("id", id);
+        if (error) {
+          alert("Gagal menghapus materi dari database: " + error.message);
+          return;
+        }
+        await fetchMaterials();
+      } catch (err: any) {
+        alert("Terjadi kesalahan: " + err.message);
+      } finally {
+        hideLoading();
+      }
     }
   };
 
@@ -556,26 +586,41 @@ Aturan Kunci Penyusutan Pajak:
     const firstMediaBlock = editorBlocks.find(b => b.type === "video" || b.type === "pdf");
     const firstMediaUrl = firstMediaBlock ? firstMediaBlock.value : "";
 
-    if (editorMode === "ADD") {
-      const newMat = {
-        title: formTitle,
-        content: serializedBlocks,
-        video_url: firstMediaUrl,
-        category: formCategory,
-        order_index: materials.length + 1
-      };
-      await supabase.from("materials").insert(newMat);
-    } else if (editorMode === "EDIT" && selectedMaterialId) {
-      await supabase.from("materials").update({
-        title: formTitle,
-        content: serializedBlocks,
-        video_url: firstMediaUrl,
-        category: formCategory
-      }).eq("id", selectedMaterialId);
-    }
+    showLoading("Menyimpan materi pembelajaran...");
+    try {
+      if (editorMode === "ADD") {
+        const newMat = {
+          title: formTitle,
+          content: serializedBlocks,
+          video_url: firstMediaUrl,
+          category: formCategory,
+          order_index: materials.length + 1
+        };
+        const { error } = await supabase.from("materials").insert(newMat);
+        if (error) {
+          alert("Gagal menambahkan materi ke database: " + error.message);
+          return;
+        }
+      } else if (editorMode === "EDIT" && selectedMaterialId) {
+        const { error } = await supabase.from("materials").update({
+          title: formTitle,
+          content: serializedBlocks,
+          video_url: firstMediaUrl,
+          category: formCategory
+        }).eq("id", selectedMaterialId);
+        if (error) {
+          alert("Gagal memperbarui materi di database: " + error.message);
+          return;
+        }
+      }
 
-    fetchMaterials();
-    setIsEditorOpen(false);
+      await fetchMaterials();
+      setIsEditorOpen(false);
+    } catch (err: any) {
+      alert("Terjadi kesalahan saat menyimpan: " + err.message);
+    } finally {
+      hideLoading();
+    }
   };
 
   const handleAddBlock = (type: "text" | "video" | "pdf") => {
@@ -624,9 +669,10 @@ Aturan Kunci Penyusutan Pajak:
   const handleBlockFileUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    
+
     const file = files[0];
     setUploadingFile(true);
+    showLoading("Mengunggah berkas materi...");
     try {
       const url = await uploadFile(file);
       const updated = [...editorBlocks];
@@ -641,6 +687,7 @@ Aturan Kunci Penyusutan Pajak:
       alert("Gagal mengunggah file. Silakan coba lagi.");
     } finally {
       setUploadingFile(false);
+      hideLoading();
     }
   };
 
@@ -650,7 +697,7 @@ Aturan Kunci Penyusutan Pajak:
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
-    
+
     // **bold** -> <strong>
     let formatted = escaped.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
     // *italic* -> <em>
@@ -664,7 +711,7 @@ Aturan Kunci Penyusutan Pajak:
   const renderMarkdown = (text: string) => {
     const lines = text.split("\n");
     const elements: React.ReactNode[] = [];
-    
+
     let currentList: React.ReactNode[] = [];
     let listType: "ul" | "ol" | null = null;
     let keyCounter = 0;
@@ -851,10 +898,9 @@ Aturan Kunci Penyusutan Pajak:
                 setActiveCategory(cat.key);
               }}
               className={`px-4 py-3 rounded-lg font-semibold text-sm text-left whitespace-nowrap lg:whitespace-normal transition-all border cursor-pointer flex-1 lg:flex-none
-                ${
-                  activeCategory === cat.key
-                    ? "bg-brand-500 border-brand-500 text-white shadow-sm"
-                    : "bg-white border-gray-200 hover:bg-gray-50 dark:bg-gray-955 dark:border-gray-800 dark:hover:bg-gray-900 text-gray-800 dark:text-gray-400"
+                ${activeCategory === cat.key
+                  ? "bg-brand-500 border-brand-500 text-white shadow-sm"
+                  : "bg-white border-gray-200 hover:bg-gray-50 dark:bg-gray-955 dark:border-gray-800 dark:hover:bg-gray-900 text-gray-800 dark:text-gray-400"
                 }`}
             >
               {cat.label}
@@ -873,7 +919,22 @@ Aturan Kunci Penyusutan Pajak:
 
         {/* Learning Materials Display */}
         <div className="lg:col-span-3 space-y-6">
-          {filteredMaterials.length === 0 ? (
+          {loading ? (
+            /* Skeleton Loading Cards */
+            <div className="space-y-6 animate-pulse">
+              {[1, 2].map((i) => (
+                <div key={i} className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white p-6 shadow-theme-sm dark:bg-gray-950 md:p-8 space-y-4">
+                  <div className="h-4 w-20 bg-gray-200 dark:bg-gray-800 rounded" />
+                  <div className="h-6 w-3/4 bg-gray-200 dark:bg-gray-800 rounded" />
+                  <div className="space-y-2 pt-2">
+                    <div className="h-4 w-full bg-gray-200 dark:bg-gray-800 rounded" />
+                    <div className="h-4 w-full bg-gray-200 dark:bg-gray-800 rounded" />
+                    <div className="h-4 w-2/3 bg-gray-200 dark:bg-gray-800 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredMaterials.length === 0 ? (
             <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white p-12 text-center dark:bg-gray-950">
               <BookOpen className="w-10 h-10 text-gray-400 mx-auto mb-3" />
               <h3 className="font-heading font-semibold text-lg text-gray-800 dark:text-white">Belum ada materi</h3>
@@ -919,7 +980,7 @@ Aturan Kunci Penyusutan Pajak:
                 <div className="space-y-6">
                   {(() => {
                     const blocks = parseMaterialContent(mat.content, mat.video_url);
-                    
+
                     return blocks.map((block, idx) => {
                       if (block.type === "text") {
                         return (
@@ -928,7 +989,7 @@ Aturan Kunci Penyusutan Pajak:
                           </div>
                         );
                       }
-                      
+
                       const resolvedUrl = resolveMediaUrl(block.value);
                       const isPdf = block.type === "pdf" || isPdfUrl(block.value);
                       const blockTitle = block.title || (isPdf ? "Dokumen Lampiran" : "Video Penjelas");
@@ -939,9 +1000,9 @@ Aturan Kunci Penyusutan Pajak:
                             <span className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5 truncate max-w-[70%]">
                               📄 {blockTitle}
                             </span>
-                            <a 
-                              href={resolvedUrl} 
-                              target="_blank" 
+                            <a
+                              href={resolvedUrl}
+                              target="_blank"
                               rel="noopener noreferrer"
                               className="text-[10px] sm:text-xs text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 font-semibold cursor-pointer shrink-0"
                             >
@@ -949,9 +1010,9 @@ Aturan Kunci Penyusutan Pajak:
                             </a>
                           </div>
                           <div className="w-full h-[350px] md:h-[400px] rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900 border border-gray-150 dark:border-gray-850">
-                            <iframe 
-                              src={resolvedUrl} 
-                              title={blockTitle} 
+                            <iframe
+                              src={resolvedUrl}
+                              title={blockTitle}
                               className="w-full h-full"
                             />
                           </div>
@@ -982,7 +1043,7 @@ Aturan Kunci Penyusutan Pajak:
           )}
 
           {/* INTERACTIVE MODULE INJECTIONS */}
-          
+
           {/* DEFINISI TAB: "Apakah Ini Aset Tetap?" check game */}
           {activeCategory === "DEFINISI" && (
             <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white p-6 shadow-theme-sm dark:bg-gray-950 mt-6 space-y-4">
@@ -1001,13 +1062,12 @@ Aturan Kunci Penyusutan Pajak:
                   <button
                     key={item.id}
                     onClick={() => setSelectedDefId(item.id)}
-                    className={`p-3 rounded-lg text-xs font-semibold border text-center transition-all cursor-pointer ${
-                      selectedDefId === item.id
+                    className={`p-3 rounded-lg text-xs font-semibold border text-center transition-all cursor-pointer ${selectedDefId === item.id
                         ? item.isAsset
                           ? "bg-success-50 border-success-500 text-success-800 dark:bg-success-950/20 dark:text-success-400"
                           : "bg-orange-50 border-orange-500 text-orange-800 dark:bg-orange-950/20 dark:text-orange-400"
                         : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 bg-gray-50/50 dark:bg-gray-900/40 text-gray-800 dark:text-gray-300"
-                    }`}
+                      }`}
                   >
                     {item.name}
                   </button>
@@ -1016,11 +1076,10 @@ Aturan Kunci Penyusutan Pajak:
 
               {/* Show response explanation */}
               {selectedDefId && (
-                <div className={`p-4 rounded-lg border text-xs leading-relaxed animate-fadeIn ${
-                  defGameItems.find(i => i.id === selectedDefId)?.isAsset
+                <div className={`p-4 rounded-lg border text-xs leading-relaxed animate-fadeIn ${defGameItems.find(i => i.id === selectedDefId)?.isAsset
                     ? "bg-success-50 border-success-100 text-success-800 dark:bg-success-950/10 dark:border-success-900 dark:text-success-400"
                     : "bg-orange-50 border-orange-100 text-orange-800 dark:bg-orange-950/10 dark:border-orange-900 dark:text-orange-400"
-                }`}>
+                  }`}>
                   <div className="flex items-start gap-2">
                     {defGameItems.find(i => i.id === selectedDefId)?.isAsset ? (
                       <CheckCircle2 className="size-4.5 shrink-0 mt-0.5" />
@@ -1049,7 +1108,7 @@ Aturan Kunci Penyusutan Pajak:
                     Ketik nama aset untuk menyaring dan mencocokkan kelompok penyusutan pajak secara cepat.
                   </p>
                 </div>
-                
+
                 {/* Search box input */}
                 <div className="relative shrink-0 w-full md:w-64">
                   <input
@@ -1089,11 +1148,10 @@ Aturan Kunci Penyusutan Pajak:
                           g.examples.toLowerCase().includes(searchTaxQuery.toLowerCase())
                         );
                         return (
-                          <tr 
-                            key={g.key} 
-                            className={`border-b border-gray-100 dark:border-gray-850 transition-colors ${
-                              isMatch ? "bg-brand-50/50 dark:bg-brand-500/10 font-medium" : "hover:bg-gray-50/30"
-                            }`}
+                          <tr
+                            key={g.key}
+                            className={`border-b border-gray-100 dark:border-gray-850 transition-colors ${isMatch ? "bg-brand-50/50 dark:bg-brand-500/10 font-medium" : "hover:bg-gray-50/30"
+                              }`}
                           >
                             <td className="px-3 py-3 font-semibold text-gray-900 dark:text-white">{g.name}</td>
                             <td className="px-3 py-3 text-center">{g.life}</td>
@@ -1193,7 +1251,7 @@ Aturan Kunci Penyusutan Pajak:
                   </span>
                 </div>
               </div>
-              
+
               <div className="text-[10px] text-gray-400 leading-relaxed text-left flex gap-1 items-start bg-blue-50/30 dark:bg-gray-900/40 p-2.5 rounded-lg border border-gray-100 dark:border-gray-800">
                 <AlertCircle className="size-3.5 text-brand-500 mt-0.5 shrink-0" />
                 <span>
@@ -1252,11 +1310,11 @@ Aturan Kunci Penyusutan Pajak:
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
                   Susunan Blok Konten (Notion-Style)
                 </label>
-                
+
                 <div className="space-y-4 max-h-[45vh] overflow-y-auto pr-2 custom-scrollbar">
                   {editorBlocks.map((block, index) => (
-                    <div 
-                      key={block.id} 
+                    <div
+                      key={block.id}
                       className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30 space-y-3 relative group"
                     >
                       {/* Block Header Controls */}
@@ -1267,7 +1325,7 @@ Aturan Kunci Penyusutan Pajak:
                           </span>
                           <span className="text-[10px] text-gray-400 font-medium">Blok #{index + 1}</span>
                         </div>
-                        
+
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
@@ -1304,7 +1362,7 @@ Aturan Kunci Penyusutan Pajak:
                           <textarea
                             value={block.value}
                             onChange={(e) => handleUpdateBlockValue(index, e.target.value)}
-                            placeholder="Ketik konten teks/markdown di sini... Anda bisa menggunakan **tebal**, *miring*, dan # header."
+                            placeholder="Ketik konten teks/markdown di sini. Anda bisa menggunakan **tebal**, *miring*, dan # header."
                             rows={4}
                             className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 py-2 px-3 text-gray-800 outline-none transition focus:border-brand-500 dark:text-white font-sans"
                           />
@@ -1379,26 +1437,26 @@ Aturan Kunci Penyusutan Pajak:
                   <button
                     type="button"
                     onClick={() => handleAddBlock("text")}
-                    className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-750 dark:text-gray-300 transition cursor-pointer"
+                    className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-lg border border-brand-500 text-brand-600 hover:bg-brand-50/30 dark:border-brand-500/50 dark:text-brand-400 dark:hover:bg-brand-500/10 transition cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    + Blok Teks
+                    Blok Teks
                   </button>
                   <button
                     type="button"
                     onClick={() => handleAddBlock("video")}
-                    className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-750 dark:text-gray-300 transition cursor-pointer"
+                    className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-lg border border-brand-500 text-brand-600 hover:bg-brand-50/30 dark:border-brand-500/50 dark:text-brand-400 dark:hover:bg-brand-500/10 transition cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    + Video YouTube
+                    Video YouTube
                   </button>
                   <button
                     type="button"
                     onClick={() => handleAddBlock("pdf")}
-                    className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-750 dark:text-gray-300 transition cursor-pointer"
+                    className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-lg border border-brand-500 text-brand-600 hover:bg-brand-50/30 dark:border-brand-500/50 dark:text-brand-400 dark:hover:bg-brand-500/10 transition cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    + Dokumen PDF
+                    Dokumen PDF
                   </button>
                 </div>
               </div>

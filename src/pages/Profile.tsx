@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Lock, Save, Camera, ShieldAlert, CheckCircle } from "lucide-react";
 import { supabase } from "../utils/supabaseClient";
+import { showLoading, hideLoading } from "../utils/loader";
 
 const uploadFile = async (file: File): Promise<string> => {
   if (supabase.storage) {
@@ -74,7 +75,8 @@ const Profile: React.FC = () => {
     setFullName(userData.full_name || "");
     setUsername(userData.username || "");
     setPhoneNumber(userData.phone_number || "");
-    setAvatarUrl(userData.avatar_url || "");
+    const storedAvatar = localStorage.getItem("clickaset_avatar_" + userData.id) || "";
+    setAvatarUrl(storedAvatar);
   }, [navigate]);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,6 +92,7 @@ const Profile: React.FC = () => {
     setUploading(true);
     setBioError("");
     setBioSuccess("");
+    showLoading("Mengunggah foto profil...");
 
     try {
       const url = await uploadFile(file);
@@ -100,6 +103,7 @@ const Profile: React.FC = () => {
       setBioError("Gagal memproses foto profil.");
     } finally {
       setUploading(false);
+      hideLoading();
     }
   };
 
@@ -114,6 +118,7 @@ const Profile: React.FC = () => {
     }
 
     setSavingBio(true);
+    showLoading("Menyimpan biodata Anda...");
 
     try {
       // Check if username is taken (excluding current user)
@@ -129,15 +134,15 @@ const Profile: React.FC = () => {
       if (isTaken) {
         setBioError("Username sudah terdaftar oleh pengguna lain.");
         setSavingBio(false);
+        hideLoading();
         return;
       }
 
-      // Update in database
+      // Update in database (Exclude avatar_url to prevent DB schema cache error)
       const updatedFields = {
         full_name: fullName,
         username: username,
         phone_number: phoneNumber,
-        avatar_url: avatarUrl
       };
 
       const { error: updateError } = await supabase
@@ -146,6 +151,13 @@ const Profile: React.FC = () => {
         .eq("id", user.id);
 
       if (updateError) throw updateError;
+
+      // Save avatar to localStorage to bypass database schema limits
+      if (avatarUrl) {
+        localStorage.setItem("clickaset_avatar_" + user.id, avatarUrl);
+      } else {
+        localStorage.removeItem("clickaset_avatar_" + user.id);
+      }
 
       // Update session local
       const updatedUser = {
@@ -167,6 +179,7 @@ const Profile: React.FC = () => {
       setBioError("Gagal menyimpan perubahan: " + (err.message || err));
     } finally {
       setSavingBio(false);
+      hideLoading();
     }
   };
 
@@ -196,6 +209,7 @@ const Profile: React.FC = () => {
     }
 
     setSavingPw(true);
+    showLoading("Memperbarui kata sandi...");
 
     try {
       const { error: updateError } = await supabase
@@ -222,6 +236,7 @@ const Profile: React.FC = () => {
       setPwError("Gagal mengganti kata sandi: " + (err.message || err));
     } finally {
       setSavingPw(false);
+      hideLoading();
     }
   };
 
