@@ -794,7 +794,7 @@ span.flatpickr-weekday,
   @apply opacity-100;
 }
 
-/* Custom animations for ClickAset */
+/* Custom animations for CLICKASET */
 @keyframes fall {
   0% {
     transform: translateY(-20px) rotate(0deg);

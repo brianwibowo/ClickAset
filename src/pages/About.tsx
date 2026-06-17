@@ -7,10 +7,10 @@ const About: React.FC = () => {
       {/* Intro Hero */}
       <div className="rounded-sm border border-stroke bg-white p-6 shadow-default dark:border-strokedark dark:bg-boxdark md:p-8">
         <h2 className="font-heading font-semibold text-2xl text-black dark:text-white">
-          Tentang ClickAset
+          Tentang CLICKASET
         </h2>
         <p className="text-gray-500 dark:text-gray-400 text-sm mt-2 leading-relaxed">
-          ClickAset adalah aplikasi pembelajaran akuntansi penyesuaian penyusutan aset tetap berbasis simulasi interaktif. Aplikasi ini dirancang untuk menjembatani kesenjangan antara teori akuntansi komersial (SAK) dan akuntansi fiskal (perpajakan) dengan cara yang menyenangkan, interaktif, dan gamifikasi.
+          CLICKASET adalah aplikasi pembelajaran akuntansi penyesuaian penyusutan aset tetap berbasis simulasi interaktif. Aplikasi ini dirancang untuk menjembatani kesenjangan antara teori akuntansi komersial (SAK) dan akuntansi fiskal (perpajakan) dengan cara yang menyenangkan, interaktif, dan gamifikasi.
         </p>
       </div>
 

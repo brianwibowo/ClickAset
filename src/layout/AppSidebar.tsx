@@ -111,7 +111,7 @@ const AppSidebar: React.FC = () => {
           />
           {showLabel && (
             <span className="font-bold text-xl tracking-wide text-gray-900 dark:text-white font-heading">
-              ClickAset
+              CLICKASET
             </span>
           )}
         </Link>

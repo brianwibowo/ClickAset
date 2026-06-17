@@ -895,7 +895,7 @@ const Kuis: React.FC = () => {
               {myRoom.status === "FINISHED" && participants.length > 0 && (
                 <div className="bg-brand-50/30 dark:bg-brand-950/10 border border-brand-100 dark:border-brand-900 p-5 rounded-xl space-y-4 text-center mt-4">
                   <h4 className="font-bold text-brand-800 dark:text-brand-400 text-sm flex items-center justify-center gap-1">
-                    <Award className="size-4.5" /> Live Podium ClickAset
+                    <Award className="size-4.5" /> Live Podium CLICKASET
                   </h4>
                   <div className="flex justify-center items-end gap-3 pt-6 pb-2">
                     {/* 2nd Place */}

@@ -8,9 +8,9 @@ export const isMockMode = !supabaseUrl || !supabaseAnonKey || supabaseUrl.includ
 
 // Print status
 if (isMockMode) {
-  console.warn("ClickAset: Supabase credentials not found or placeholder. Running in Offline Mock Mode (LocalStorage Sync).");
+  console.warn("CLICKASET: Supabase credentials not found or placeholder. Running in Offline Mock Mode (LocalStorage Sync).");
 } else {
-  console.log("ClickAset: Connected to real Supabase database instance.");
+  console.log("CLICKASET: Connected to real Supabase database instance.");
 }
 
 // ----------------------------------------------------

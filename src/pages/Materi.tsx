@@ -28,19 +28,21 @@ type Material = {
   order_index: number;
 };
 
-type MediaItem = {
-  url: string;
-  title: string;
-  type: "video" | "pdf";
-  position: "TOP" | "BOTTOM" | "SIDE";
-};
+type ContentBlock =
+  | { id: string; type: "text"; value: string; title?: string }
+  | { id: string; type: "video"; value: string; title: string }
+  | { id: string; type: "pdf"; value: string; title: string };
 
 const defaultMaterials: Material[] = [
   {
     id: "def-1",
     category: "DEFINISI",
     title: "Definisi & Karakteristik Aset Tetap",
-    content: `Aset Tetap adalah aset berwujud yang dimiliki untuk digunakan dalam produksi atau penyediaan barang or jasa, untuk direntalkan kepada orang lain, atau untuk tujuan administratif; dan diharapkan untuk digunakan selama lebih dari satu periode (Standar Akuntansi Keuangan / SAK).
+    content: JSON.stringify([
+      {
+        id: "def-b1",
+        type: "text",
+        value: `Aset Tetap adalah aset berwujud yang dimiliki untuk digunakan dalam produksi atau penyediaan barang or jasa, untuk direntalkan kepada orang lain, atau untuk tujuan administratif; dan diharapkan untuk digunakan selama lebih dari satu periode (Standar Akuntansi Keuangan / SAK).
 
 Karakteristik Utama Aset Tetap:
 1. Memiliki bentuk fisik nyata (berwujud).
@@ -48,15 +50,27 @@ Karakteristik Utama Aset Tetap:
 3. Memiliki masa manfaat ekonomis lebih dari 1 tahun akuntansi.
 4. Nilai perolehan atau nilai asetnya material (cukup signifikan/mahal).
 
-Penyusutan (Depresiasi) adalah alokasi sistematis jumlah yang dapat disusutkan dari suatu aset selama masa manfaatnya. Karena manfaat ekonomi aset menurun seiring waktu, nilai tersebut harus diakui sebagai beban penyusutan di laporan laba rugi.`,
-    video_url: JSON.stringify([{ url: "https://youtu.be/gv9_xTQYNaM?si=e_eKXXNcC5Zmxnng", title: "Definisi & Karakteristik Aset Tetap", type: "video", position: "TOP" }]),
+Penyusutan (Depresiasi) adalah alokasi sistematis jumlah yang dapat disusutkan dari suatu aset selama masa manfaatnya. Karena manfaat ekonomi aset menurun seiring waktu, nilai tersebut harus diakui sebagai beban penyusutan di laporan laba rugi.`
+      },
+      {
+        id: "def-b2",
+        type: "video",
+        value: "https://youtu.be/gv9_xTQYNaM?si=e_eKXXNcC5Zmxnng",
+        title: "Definisi & Karakteristik Aset Tetap"
+      }
+    ]),
+    video_url: "https://youtu.be/gv9_xTQYNaM?si=e_eKXXNcC5Zmxnng",
     order_index: 1
   },
   {
     id: "kel-1",
     category: "KELOMPOK",
     title: "Kelompok Harta Berwujud Perpajakan",
-    content: `Menurut Ketentuan Perpajakan di Indonesia (UU PPh Pasal 11), penyusutan harta berwujud dilakukan berdasarkan pembagian kelompok harta sesuai dengan masa manfaatnya sebagai berikut:
+    content: JSON.stringify([
+      {
+        id: "kel-b1",
+        type: "text",
+        value: `Menurut Ketentuan Perpajakan di Indonesia (UU PPh Pasal 11), penyusutan harta berwujud dilakukan berdasarkan pembagian kelompok harta sesuai dengan masa manfaatnya sebagai berikut:
 
 I. BUKAN BANGUNAN:
 1. Kelompok 1:
@@ -85,15 +99,27 @@ II. BANGUNAN:
    - Tarif Garis Lurus: 5% | Tarif Saldo Menurun: (Tidak diperkenankan)
 2. Bangunan Tidak Permanen (Semi-permanen):
    - Masa Manfaat: 10 Tahun
-   - Tarif Garis Lurus: 10% | Tarif Saldo Menurun: (Tidak diperkenankan)`,
-    video_url: JSON.stringify([{ url: "/Users/mymac/Documents/Codes/ClickAset/src/assets/Materi perpajakan.pdf", title: "Kelompok Harta Berwujud Perpajakan (PDF)", type: "pdf", position: "TOP" }]),
+   - Tarif Garis Lurus: 10% | Tarif Saldo Menurun: (Tidak diperkenankan)`
+      },
+      {
+        id: "kel-b2",
+        type: "pdf",
+        value: "/Users/mymac/Documents/Codes/ClickAset/src/assets/Materi perpajakan.pdf",
+        title: "Kelompok Harta Berwujud Perpajakan (PDF)"
+      }
+    ]),
+    video_url: "/Users/mymac/Documents/Codes/ClickAset/src/assets/Materi perpajakan.pdf",
     order_index: 2
   },
   {
     id: "sak-1",
     category: "SAK",
     title: "Metode Penyusutan Menurut SAK",
-    content: `Standar Akuntansi Keuangan (SAK) memperkenankan berbagai metode penyusutan yang mencerminkan pola konsumsi masa manfaat aset oleh perusahaan:
+    content: JSON.stringify([
+      {
+        id: "sak-b1",
+        type: "text",
+        value: `Standar Akuntansi Keuangan (SAK) memperkenankan berbagai metode penyusutan yang mencerminkan pola konsumsi masa manfaat aset oleh perusahaan:
 
 1. Metode Garis Lurus (Straight Line Method)
    - Beban penyusutan sama besar setiap tahunnya.
@@ -113,15 +139,27 @@ II. BANGUNAN:
 
 5. Metode Satuan Hasil Produksi (Output Method)
    - Penyusutan didasarkan pada jumlah unit output yang diproduksi aset.
-   - Rumus: (Harga Perolehan - Nilai Residu) / Total Taksiran Output x Output Aktual Dihasilkan`,
-    video_url: JSON.stringify([{ url: "https://youtu.be/5hN_dQwah5U?si=BnaMLGkSunxDUVzh", title: "Metode Penyusutan Menurut SAK", type: "video", position: "TOP" }]),
+   - Rumus: (Harga Perolehan - Nilai Residu) / Total Taksiran Output x Output Aktual Dihasilkan`
+      },
+      {
+        id: "sak-b2",
+        type: "video",
+        value: "https://youtu.be/5hN_dQwah5U?si=BnaMLGkSunxDUVzh",
+        title: "Metode Penyusutan Menurut SAK"
+      }
+    ]),
+    video_url: "https://youtu.be/5hN_dQwah5U?si=BnaMLGkSunxDUVzh",
     order_index: 3
   },
   {
     id: "pajak-1",
     category: "PAJAK",
     title: "Metode Penyusutan Menurut Pajak",
-    content: `Perpajakan Indonesia mengatur secara ketat tata cara penyusutan fiskal untuk menghitung Pajak Penghasilan (PPh):
+    content: JSON.stringify([
+      {
+        id: "pajak-b1",
+        type: "text",
+        value: `Perpajakan Indonesia mengatur secara ketat tata cara penyusutan fiskal untuk menghitung Pajak Penghasilan (PPh):
 
 Aturan Kunci Penyusutan Pajak:
 1. Metode yang Diperbolehkan:
@@ -133,7 +171,9 @@ Aturan Kunci Penyusutan Pajak:
 4. Mulai Penyusutan:
    - Penyusutan fiskal dimulai pada bulan dilakukannya pengeluaran/perolehan aset tetap, bukan saat mulai beroperasi.
 5. Pembulatan Umur Manfaat:
-   - Aset harus dicocokkan ke 4 kelompok harta bukan bangunan atau kelompok bangunan yang sudah ditentukan tarif pajaknya.`,
+   - Aset harus dicocokkan ke 4 kelompok harta bukan bangunan atau kelompok bangunan yang sudah ditentukan tarif pajaknya.`
+      }
+    ]),
     video_url: "",
     order_index: 4
   }
@@ -186,26 +226,59 @@ const isPdfUrl = (url: string) => {
   return resolved === materiPdf || resolved.endsWith(".pdf") || resolved.includes(".pdf") || resolved.startsWith("data:application/pdf");
 };
 
-const parseMediaUrls = (videoUrlStr: string): MediaItem[] => {
-  if (!videoUrlStr) return [];
-  
-  // If it's a JSON array of MediaItems
-  if (videoUrlStr.trim().startsWith("[")) {
+const parseMaterialContent = (contentStr: string, videoUrlStr: string): ContentBlock[] => {
+  if (!contentStr) return [];
+  if (contentStr.trim().startsWith("[")) {
     try {
-      return JSON.parse(videoUrlStr);
+      return JSON.parse(contentStr);
     } catch (e) {
-      console.error("Failed to parse media JSON:", e);
+      console.error("Failed to parse content blocks JSON:", e);
     }
   }
-  
-  // Backwards compatibility for single string URLs
-  const isPdf = isPdfUrl(videoUrlStr);
-  return [{
-    url: videoUrlStr,
-    title: isPdf ? "Dokumen Lampiran" : "Video Penjelas",
-    type: isPdf ? "pdf" : "video",
-    position: "TOP"
-  }];
+
+  // Fallback for legacy text + media attachments
+  const blocks: ContentBlock[] = [];
+  if (contentStr) {
+    blocks.push({
+      id: "legacy-txt-" + Math.random().toString(36).substring(2, 7),
+      type: "text",
+      value: contentStr
+    });
+  }
+
+  if (videoUrlStr) {
+    if (videoUrlStr.trim().startsWith("[")) {
+      try {
+        const legacyItems = JSON.parse(videoUrlStr);
+        legacyItems.forEach((item: any, idx: number) => {
+          blocks.push({
+            id: `legacy-media-${idx}`,
+            type: item.type === "pdf" ? "pdf" : "video",
+            value: item.url,
+            title: item.title
+          });
+        });
+      } catch (e) {
+        const isPdf = isPdfUrl(videoUrlStr);
+        blocks.push({
+          id: "legacy-med-" + Math.random().toString(36).substring(2, 7),
+          type: isPdf ? "pdf" : "video",
+          value: videoUrlStr,
+          title: isPdf ? "Dokumen Lampiran" : "Video Penjelas"
+        });
+      }
+    } else {
+      const isPdf = isPdfUrl(videoUrlStr);
+      blocks.push({
+        id: "legacy-med-" + Math.random().toString(36).substring(2, 7),
+        type: isPdf ? "pdf" : "video",
+        value: videoUrlStr,
+        title: isPdf ? "Dokumen Lampiran" : "Video Penjelas"
+      });
+    }
+  }
+
+  return blocks;
 };
 
 const uploadFile = async (file: File): Promise<string> => {
@@ -253,15 +326,10 @@ const Materi: React.FC = () => {
   const [editorMode, setEditorMode] = useState<"ADD" | "EDIT">("ADD");
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
   const [formTitle, setFormTitle] = useState("");
-  const [formContent, setFormContent] = useState("");
   const [formCategory, setFormCategory] = useState<"DEFINISI" | "KELOMPOK" | "SAK" | "PAJAK">("DEFINISI");
 
-  // New Media States for Guru Uploads & Layout Customization
-  const [editorMediaItems, setEditorMediaItems] = useState<MediaItem[]>([]);
-  const [newMediaUrl, setNewMediaUrl] = useState("");
-  const [newMediaTitle, setNewMediaTitle] = useState("");
-  const [newMediaType, setNewMediaType] = useState<"video" | "pdf">("video");
-  const [newMediaPosition, setNewMediaPosition] = useState<"TOP" | "BOTTOM" | "SIDE">("TOP");
+  // Block-Based Content Editor States
+  const [editorBlocks, setEditorBlocks] = useState<ContentBlock[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
 
   // DEFINISI Interactive Game State
@@ -284,32 +352,158 @@ const Materi: React.FC = () => {
 
     fetchMaterials();
   }, []);
-
   const fetchMaterials = async () => {
     // Fetch from Supabase / LocalStorage Mock
     const { data } = await supabase.from("materials").select("*").order("order_index", { ascending: true });
     if (data && data.length > 0) {
-      // Auto-update the default entries with the new dummy URLs if they still have the old defaults
+      // Auto-update the default entries with the new block-based content format if they still have the old defaults
       let needsUpdate = false;
       const updatedData = data.map((m: any) => {
-        if (m.id === "def-1" && !m.video_url.includes("gv9_xTQYNaM")) {
-          m.video_url = JSON.stringify([{ url: "https://youtu.be/gv9_xTQYNaM?si=e_eKXXNcC5Zmxnng", title: "Definisi & Karakteristik Aset Tetap", type: "video", position: "TOP" }]);
+        // Migration for def-1
+        if (m.id === "def-1" && !m.content.trim().startsWith("[")) {
+          m.content = JSON.stringify([
+            {
+              id: "def-b1",
+              type: "text",
+              value: `Aset Tetap adalah aset berwujud yang dimiliki untuk digunakan dalam produksi atau penyediaan barang or jasa, untuk direntalkan kepada orang lain, atau untuk tujuan administratif; dan diharapkan untuk digunakan selama lebih dari satu periode (Standar Akuntansi Keuangan / SAK).
+
+Karakteristik Utama Aset Tetap:
+1. Memiliki bentuk fisik nyata (berwujud).
+2. Digunakan secara aktif dalam operasional normal perusahaan (bukan untuk diperjualbelikan kembali sebagai barang dagang).
+3. Memiliki masa manfaat ekonomis lebih dari 1 tahun akuntansi.
+4. Nilai perolehan atau nilai asetnya material (cukup signifikan/mahal).
+
+Penyusutan (Depresiasi) adalah alokasi sistematis jumlah yang dapat disusutkan dari suatu aset selama masa manfaatnya. Karena manfaat ekonomi aset menurun seiring waktu, nilai tersebut harus diakui sebagai beban penyusutan di laporan laba rugi.`
+            },
+            {
+              id: "def-b2",
+              type: "video",
+              value: "https://youtu.be/gv9_xTQYNaM?si=e_eKXXNcC5Zmxnng",
+              title: "Definisi & Karakteristik Aset Tetap"
+            }
+          ]);
+          m.video_url = "https://youtu.be/gv9_xTQYNaM?si=e_eKXXNcC5Zmxnng";
           needsUpdate = true;
         }
-        if (m.id === "sak-1" && !m.video_url.includes("5hN_dQwah5U")) {
-          m.video_url = JSON.stringify([{ url: "https://youtu.be/5hN_dQwah5U?si=BnaMLGkSunxDUVzh", title: "Metode Penyusutan Menurut SAK", type: "video", position: "TOP" }]);
+
+        // Migration for kel-1
+        if (m.id === "kel-1" && !m.content.trim().startsWith("[")) {
+          m.content = JSON.stringify([
+            {
+              id: "kel-b1",
+              type: "text",
+              value: `Menurut Ketentuan Perpajakan di Indonesia (UU PPh Pasal 11), penyusutan harta berwujud dilakukan berdasarkan pembagian kelompok harta sesuai dengan masa manfaatnya sebagai berikut:
+
+I. BUKAN BANGUNAN:
+1. Kelompok 1:
+   - Masa Manfaat: 4 Tahun
+   - Tarif Garis Lurus: 25% | Tarif Saldo Menurun: 50%
+   - Contoh: Komputer, printer, HP, sepeda motor, alat pertanian ringan.
+
+2. Kelompok 2:
+   - Masa Manfaat: 8 Tahun
+   - Tarif Garis Lurus: 12,5% | Tarif Saldo Menurun: 25%
+   - Contoh: Mobil operasional, mebel kayu/logam, AC, mesin kantor sedang.
+
+3. Kelompok 3:
+   - Masa Manfaat: 16 Tahun
+   - Tarif Garis Lurus: 6,25% | Tarif Saldo Menurun: 12,5%
+   - Contoh: Mesin pabrik berat, kapal penumpang sedang.
+
+4. Kelompok 4:
+   - Masa Manfaat: 20 Tahun
+   - Tarif Garis Lurus: 5% | Tarif Saldo Menurun: 10%
+   - Contoh: Kereta api, kapal barang besar.
+
+II. BANGUNAN:
+1. Bangunan Permanen:
+   - Masa Manfaat: 20 Tahun
+   - Tarif Garis Lurus: 5% | Tarif Saldo Menurun: (Tidak diperkenankan)
+2. Bangunan Tidak Permanen (Semi-permanen):
+   - Masa Manfaat: 10 Tahun
+   - Tarif Garis Lurus: 10% | Tarif Saldo Menurun: (Tidak diperkenankan)`
+            },
+            {
+              id: "kel-b2",
+              type: "pdf",
+              value: "/Users/mymac/Documents/Codes/ClickAset/src/assets/Materi perpajakan.pdf",
+              title: "Kelompok Harta Berwujud Perpajakan (PDF)"
+            }
+          ]);
+          m.video_url = "/Users/mymac/Documents/Codes/ClickAset/src/assets/Materi perpajakan.pdf";
           needsUpdate = true;
         }
-        if (m.id === "kel-1" && !m.video_url.includes("Materi perpajakan.pdf")) {
-          m.video_url = JSON.stringify([{ url: "/Users/mymac/Documents/Codes/ClickAset/src/assets/Materi perpajakan.pdf", title: "Kelompok Harta Berwujud Perpajakan (PDF)", type: "pdf", position: "TOP" }]);
+
+        // Migration for sak-1
+        if (m.id === "sak-1" && !m.content.trim().startsWith("[")) {
+          m.content = JSON.stringify([
+            {
+              id: "sak-b1",
+              type: "text",
+              value: `Standar Akuntansi Keuangan (SAK) memperkenankan berbagai metode penyusutan yang mencerminkan pola konsumsi masa manfaat aset oleh perusahaan:
+
+1. Metode Garis Lurus (Straight Line Method)
+   - Beban penyusutan sama besar setiap tahunnya.
+   - Rumus: (Harga Perolehan - Nilai Residu) / Masa Manfaat
+
+2. Metode Saldo Menurun Ganda (Double Declining Balance Method)
+   - Beban penyusutan lebih besar di awal tahun dan menyusut bertahap.
+   - Rumus: Nilai Buku Awal x Tarif Penyusutan (2x Tarif Garis Lurus)
+
+3. Metode Jumlah Angka Tahun (Sum of the Years' Digits)
+   - Penyusutan dihitung dengan mengalikan pecahan angka tahun dengan jumlah yang dapat disusutkan.
+   - Rumus: (Masa Manfaat Tersisa / Jumlah Angka Tahun) x (Harga Perolehan - Nilai Residu)
+
+4. Metode Satuan Jam Kerja (Service Hours Method)
+   - Penyusutan didasarkan pada jam pemakaian fisik aset.
+   - Rumus: (Harga Perolehan - Nilai Residu) / Total Taksiran Jam x Jam Aktual Terpakai
+
+5. Metode Satuan Hasil Produksi (Output Method)
+   - Penyusutan didasarkan pada jumlah unit output yang diproduksi aset.
+   - Rumus: (Harga Perolehan - Nilai Residu) / Total Taksiran Output x Output Aktual Dihasilkan`
+            },
+            {
+              id: "sak-b2",
+              type: "video",
+              value: "https://youtu.be/5hN_dQwah5U?si=BnaMLGkSunxDUVzh",
+              title: "Metode Penyusutan Menurut SAK"
+            }
+          ]);
+          m.video_url = "https://youtu.be/5hN_dQwah5U?si=BnaMLGkSunxDUVzh";
           needsUpdate = true;
         }
+
+        // Migration for pajak-1
+        if (m.id === "pajak-1" && !m.content.trim().startsWith("[")) {
+          m.content = JSON.stringify([
+            {
+              id: "pajak-b1",
+              type: "text",
+              value: `Perpajakan Indonesia mengatur secara ketat tata cara penyusutan fiskal untuk menghitung Pajak Penghasilan (PPh):
+
+Aturan Kunci Penyusutan Pajak:
+1. Metode yang Diperbolehkan:
+   - Hanya Metode Garis Lurus dan Metode Saldo Menurun.
+2. Aturan Aset Bangunan:
+   - Bangunan WAJIB disusutkan menggunakan Metode Garis Lurus. Metode Saldo Menurun dilarang untuk kelompok bangunan.
+3. Nilai Residu Diabaikan:
+   - Nilai sisa (nilai residu) akhir masa manfaat dianggap Rp0 dalam perhitungan pajak.
+4. Mulai Penyusutan:
+   - Penyusutan fiskal dimulai pada bulan dilakukannya pengeluaran/perolehan aset tetap, bukan saat mulai beroperasi.
+5. Pembulatan Umur Manfaat:
+   - Aset harus dicocokkan ke 4 kelompok harta bukan bangunan atau kelompok bangunan yang sudah ditentukan tarif pajaknya.`
+            }
+          ]);
+          m.video_url = "";
+          needsUpdate = true;
+        }
+
         return m;
       });
 
       if (needsUpdate) {
         for (const m of updatedData) {
-          await supabase.from("materials").update({ video_url: m.video_url }).eq("id", m.id);
+          await supabase.from("materials").update({ content: m.content, video_url: m.video_url }).eq("id", m.id);
         }
         setMaterials(updatedData);
       } else {
@@ -324,13 +518,8 @@ const Materi: React.FC = () => {
   const handleOpenAdd = () => {
     setEditorMode("ADD");
     setFormTitle("");
-    setFormContent("");
     setFormCategory(activeCategory);
-    setEditorMediaItems([]);
-    setNewMediaUrl("");
-    setNewMediaTitle("");
-    setNewMediaType("video");
-    setNewMediaPosition("TOP");
+    setEditorBlocks([{ id: "b-" + Math.random().toString(36).substring(2, 9), type: "text", value: "" }]);
     setIsEditorOpen(true);
   };
 
@@ -338,13 +527,8 @@ const Materi: React.FC = () => {
     setEditorMode("EDIT");
     setSelectedMaterialId(material.id);
     setFormTitle(material.title);
-    setFormContent(material.content);
     setFormCategory(material.category);
-    setEditorMediaItems(parseMediaUrls(material.video_url));
-    setNewMediaUrl("");
-    setNewMediaTitle("");
-    setNewMediaType("video");
-    setNewMediaPosition("TOP");
+    setEditorBlocks(parseMaterialContent(material.content, material.video_url));
     setIsEditorOpen(true);
   };
 
@@ -357,18 +541,26 @@ const Materi: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formTitle || !formContent) {
-      alert("Judul dan isi materi wajib diisi!");
+    if (!formTitle) {
+      alert("Judul materi wajib diisi!");
       return;
     }
 
-    const serializedMedia = JSON.stringify(editorMediaItems);
+    const hasContent = editorBlocks.some(b => b.value.trim() !== "");
+    if (!hasContent) {
+      alert("Materi harus memiliki setidaknya satu blok konten!");
+      return;
+    }
+
+    const serializedBlocks = JSON.stringify(editorBlocks);
+    const firstMediaBlock = editorBlocks.find(b => b.type === "video" || b.type === "pdf");
+    const firstMediaUrl = firstMediaBlock ? firstMediaBlock.value : "";
 
     if (editorMode === "ADD") {
       const newMat = {
         title: formTitle,
-        content: formContent,
-        video_url: serializedMedia,
+        content: serializedBlocks,
+        video_url: firstMediaUrl,
         category: formCategory,
         order_index: materials.length + 1
       };
@@ -376,8 +568,8 @@ const Materi: React.FC = () => {
     } else if (editorMode === "EDIT" && selectedMaterialId) {
       await supabase.from("materials").update({
         title: formTitle,
-        content: formContent,
-        video_url: serializedMedia,
+        content: serializedBlocks,
+        video_url: firstMediaUrl,
         category: formCategory
       }).eq("id", selectedMaterialId);
     }
@@ -386,33 +578,50 @@ const Materi: React.FC = () => {
     setIsEditorOpen(false);
   };
 
-  const handleAddMediaItem = () => {
-    if (!newMediaUrl && newMediaType === "video") {
-      alert("URL media wajib diisi!");
+  const handleAddBlock = (type: "text" | "video" | "pdf") => {
+    const newBlock: ContentBlock = {
+      id: "b-" + Math.random().toString(36).substring(2, 9),
+      type,
+      value: "",
+      title: ""
+    };
+    setEditorBlocks([...editorBlocks, newBlock]);
+  };
+
+  const handleUpdateBlockValue = (index: number, value: string) => {
+    const updated = [...editorBlocks];
+    updated[index].value = value;
+    setEditorBlocks(updated);
+  };
+
+  const handleUpdateBlockTitle = (index: number, title: string) => {
+    const updated = [...editorBlocks];
+    if (updated[index].type !== "text") {
+      (updated[index] as any).title = title;
+    }
+    setEditorBlocks(updated);
+  };
+
+  const handleDeleteBlock = (index: number) => {
+    if (editorBlocks.length <= 1) {
+      alert("Materi harus memiliki setidaknya satu blok konten!");
       return;
     }
-    
-    const newItem: MediaItem = {
-      url: newMediaUrl,
-      title: newMediaTitle || (newMediaType === "pdf" ? "Lampiran Dokumen" : "Video Penjelas"),
-      type: newMediaType,
-      position: newMediaPosition
-    };
-
-    setEditorMediaItems([...editorMediaItems, newItem]);
-    
-    // Reset inputs
-    setNewMediaUrl("");
-    setNewMediaTitle("");
-    setNewMediaType("video");
-    setNewMediaPosition("TOP");
+    setEditorBlocks(editorBlocks.filter((_, idx) => idx !== index));
   };
 
-  const handleDeleteMediaItem = (index: number) => {
-    setEditorMediaItems(editorMediaItems.filter((_, i) => i !== index));
+  const handleMoveBlock = (index: number, direction: "UP" | "DOWN") => {
+    const targetIdx = direction === "UP" ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= editorBlocks.length) return;
+
+    const updated = [...editorBlocks];
+    const temp = updated[index];
+    updated[index] = updated[targetIdx];
+    updated[targetIdx] = temp;
+    setEditorBlocks(updated);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBlockFileUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     
@@ -420,11 +629,13 @@ const Materi: React.FC = () => {
     setUploadingFile(true);
     try {
       const url = await uploadFile(file);
-      setNewMediaUrl(url);
-      setNewMediaType(file.type.startsWith("video/") ? "video" : "pdf");
-      if (!newMediaTitle) {
-        setNewMediaTitle(file.name.replace(/\.[^/.]+$/, ""));
+      const updated = [...editorBlocks];
+      updated[index].value = url;
+      updated[index].type = file.type.startsWith("video/") ? "video" : "pdf";
+      if (!updated[index].title) {
+        (updated[index] as any).title = file.name.replace(/\.[^/.]+$/, "");
       }
+      setEditorBlocks(updated);
     } catch (err) {
       console.error("File upload failed:", err);
       alert("Gagal mengunggah file. Silakan coba lagi.");
@@ -569,10 +780,10 @@ const Materi: React.FC = () => {
       {/* Welcome Banner Card */}
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white p-6 shadow-theme-sm dark:bg-gray-950">
         <h2 className="font-heading font-semibold text-2xl text-gray-900 dark:text-white">
-          {user ? `Halo, ${user.full_name}! 👋` : "Selamat Datang di ClickAset! 👋"}
+          {user ? `Halo, ${user.full_name}! 👋` : "Selamat Datang di CLICKASET! 👋"}
         </h2>
         <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 max-w-xl">
-          ClickAset membantu Anda menguasai pencatatan beban penyesuaian penyusutan aset tetap secara komparatif antara aturan akuntansi komersial (SAK) dan perpajakan (fiskal).
+          CLICKASET membantu Anda menguasai pencatatan beban penyesuaian penyusutan aset tetap secara komparatif antara aturan akuntansi komersial (SAK) dan perpajakan (fiskal).
         </p>
       </div>
 
@@ -696,98 +907,67 @@ const Materi: React.FC = () => {
                   </h3>
                 </div>
 
-                {/* Media and Content Layout Section */}
-                {(() => {
-                  const mediaItems = parseMediaUrls(mat.video_url);
-                  const topMedia = mediaItems.filter((m) => m.position === "TOP");
-                  const bottomMedia = mediaItems.filter((m) => m.position === "BOTTOM");
-                  const sideMedia = mediaItems.filter((m) => m.position === "SIDE");
-                  const hasSideMedia = sideMedia.length > 0;
-
-                  const renderMediaFrame = (media: MediaItem, idx: number) => {
-                    const resolvedUrl = resolveMediaUrl(media.url);
-                    const isPdf = isPdfUrl(media.url);
+                {/* Block-Based Content Rendering */}
+                <div className="space-y-6">
+                  {(() => {
+                    const blocks = parseMaterialContent(mat.content, mat.video_url);
                     
-                    return isPdf ? (
-                      <div key={idx} className="w-full overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 shadow-theme-xs space-y-3 p-4">
-                        <div className="flex items-center justify-between border-b pb-2 border-gray-150 dark:border-gray-850">
-                          <span className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5 truncate max-w-[70%]">
-                            📄 {media.title}
-                          </span>
-                          <a 
-                            href={resolvedUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-[10px] sm:text-xs text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 font-semibold cursor-pointer shrink-0"
-                          >
-                            Buka Tab Baru ↗
-                          </a>
-                        </div>
-                        <div className="w-full h-[300px] rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900 border border-gray-150 dark:border-gray-850">
-                          <iframe 
-                            src={resolvedUrl} 
-                            title={media.title} 
-                            className="w-full h-full"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div key={idx} className="w-full overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-black shadow-theme-xs">
-                        <div className="relative pb-[56.25%] h-0">
-                          <iframe
-                            src={resolvedUrl}
-                            title={media.title}
-                            frameBorder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                            className="absolute top-0 left-0 w-full h-full"
-                          />
-                        </div>
-                        <div className="p-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-800 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                          <Video className="w-3.5 h-3.5 text-brand-500 shrink-0" />
-                          <span className="truncate">{media.title}</span>
-                        </div>
-                      </div>
-                    );
-                  };
-
-                  return (
-                    <div className={hasSideMedia ? "grid grid-cols-1 lg:grid-cols-12 gap-6" : "space-y-5"}>
-                      <div className={hasSideMedia ? "lg:col-span-7 space-y-5" : "space-y-5"}>
-                        {/* TOP Media embeds */}
-                        {topMedia.length > 0 && (
-                          <div className="space-y-4">
-                            {topMedia.map((media, idx) => renderMediaFrame(media, idx))}
+                    return blocks.map((block, idx) => {
+                      if (block.type === "text") {
+                        return (
+                          <div key={block.id || idx} className="space-y-3">
+                            {renderMarkdown(block.value)}
                           </div>
-                        )}
+                        );
+                      }
+                      
+                      const resolvedUrl = resolveMediaUrl(block.value);
+                      const isPdf = block.type === "pdf" || isPdfUrl(block.value);
+                      const blockTitle = block.title || (isPdf ? "Dokumen Lampiran" : "Video Penjelas");
 
-                        {/* Styled parsed Markdown Text Body */}
-                        <div className="space-y-3">
-                          {renderMarkdown(mat.content)}
-                        </div>
-
-                        {/* BOTTOM Media embeds */}
-                        {bottomMedia.length > 0 && (
-                          <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-850">
-                            {bottomMedia.map((media, idx) => renderMediaFrame(media, idx))}
+                      return isPdf ? (
+                        <div key={block.id || idx} className="w-full max-w-3xl mx-auto overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 shadow-theme-xs space-y-3 p-4">
+                          <div className="flex items-center justify-between border-b pb-2 border-gray-150 dark:border-gray-850">
+                            <span className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5 truncate max-w-[70%]">
+                              📄 {blockTitle}
+                            </span>
+                            <a 
+                              href={resolvedUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-[10px] sm:text-xs text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 font-semibold cursor-pointer shrink-0"
+                            >
+                              Buka Tab Baru ↗
+                            </a>
                           </div>
-                        )}
-                      </div>
-
-                      {/* SIDE Media embeds */}
-                      {hasSideMedia && (
-                        <div className="lg:col-span-5 space-y-4 border-t lg:border-t-0 lg:border-l border-gray-100 dark:border-gray-850 pt-6 lg:pt-0 lg:pl-6">
-                          <h4 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Media Lampiran</h4>
-                          {sideMedia.map((media, idx) => renderMediaFrame(media, idx))}
+                          <div className="w-full h-[350px] md:h-[400px] rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900 border border-gray-150 dark:border-gray-850">
+                            <iframe 
+                              src={resolvedUrl} 
+                              title={blockTitle} 
+                              className="w-full h-full"
+                            />
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* Styled parsed Markdown Text Body */}
-                <div className="space-y-3">
-                  {renderMarkdown(mat.content)}
+                      ) : (
+                        <div key={block.id || idx} className="w-full max-w-2xl mx-auto overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-black shadow-theme-xs">
+                          <div className="relative pb-[56.25%] h-0">
+                            <iframe
+                              src={resolvedUrl}
+                              title={blockTitle}
+                              frameBorder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                              className="absolute top-0 left-0 w-full h-full"
+                            />
+                          </div>
+                          <div className="p-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-800 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <Video className="w-3.5 h-3.5 text-brand-500 shrink-0" />
+                            <span className="truncate">{blockTitle}</span>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             ))
@@ -1059,138 +1239,160 @@ const Materi: React.FC = () => {
                 </select>
               </div>
 
-              {/* Media Attachments Section */}
-              <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-3 bg-gray-50/50 dark:bg-gray-900/20 space-y-3">
-                <span className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Daftar Lampiran Media ({editorMediaItems.length})
-                </span>
+              {/* Block-Based Editor Section */}
+              <div className="space-y-4">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Susunan Blok Konten (Notion-Style)
+                </label>
                 
-                {/* Current items list */}
-                {editorMediaItems.length === 0 ? (
-                  <p className="text-xs text-gray-400 italic">Belum ada media (video/PDF) yang dilampirkan.</p>
-                ) : (
-                  <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
-                    {editorMediaItems.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-xs p-2 bg-white dark:bg-gray-855 rounded border border-gray-200 dark:border-gray-800 shadow-theme-xs">
-                        <div className="flex items-center gap-1.5 truncate pr-2">
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400 shrink-0">
-                            {item.type}
+                <div className="space-y-4 max-h-[45vh] overflow-y-auto pr-2 custom-scrollbar">
+                  {editorBlocks.map((block, index) => (
+                    <div 
+                      key={block.id} 
+                      className="p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30 space-y-3 relative group"
+                    >
+                      {/* Block Header Controls */}
+                      <div className="flex items-center justify-between border-b border-gray-200/60 dark:border-gray-800 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-brand-105 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+                            {block.type === "text" ? "Teks" : block.type === "video" ? "Video YouTube" : "Dokumen PDF"}
                           </span>
-                          <span className="font-semibold truncate text-slate-800 dark:text-slate-200">{item.title}</span>
-                          <span className="text-[10px] text-gray-400 font-medium shrink-0">({item.position})</span>
+                          <span className="text-[10px] text-gray-400 font-medium">Blok #{index + 1}</span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteMediaItem(idx)}
-                          className="text-red-500 hover:text-red-700 p-1 cursor-pointer shrink-0"
-                          title="Hapus media"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Add new item form section */}
-                <div className="border-t border-gray-200 dark:border-gray-800 pt-3 space-y-3">
-                  <span className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">Tambah Media Baru</span>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">Tipe Media</label>
-                      <select
-                        value={newMediaType}
-                        onChange={(e) => setNewMediaType(e.target.value as any)}
-                        className="w-full text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-850 p-1.5 text-gray-800 dark:text-white outline-none"
-                      >
-                        <option value="video">Video YouTube</option>
-                        <option value="pdf">Dokumen PDF</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">Posisi Layout</label>
-                      <select
-                        value={newMediaPosition}
-                        onChange={(e) => setNewMediaPosition(e.target.value as any)}
-                        className="w-full text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-855 p-1.5 text-gray-800 dark:text-white outline-none"
-                      >
-                        <option value="TOP">Sebelum Konten (TOP)</option>
-                        <option value="BOTTOM">Setelah Konten (BOTTOM)</option>
-                        <option value="SIDE">Samping Konten (SIDE)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">Judul Media</label>
-                      <input
-                        type="text"
-                        value={newMediaTitle}
-                        onChange={(e) => setNewMediaTitle(e.target.value)}
-                        placeholder="Contoh: Video Analisis SAK"
-                        className="w-full text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-855 p-1.5 text-gray-850 dark:text-white outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {newMediaType === "video" ? (
-                      <div>
-                        <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">URL Video YouTube</label>
-                        <input
-                          type="text"
-                          value={newMediaUrl}
-                          onChange={(e) => setNewMediaUrl(e.target.value)}
-                          placeholder="https://youtu.be/..."
-                          className="w-full text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-855 p-1.5 text-gray-850 dark:text-white outline-none"
-                        />
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div>
-                          <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">Unggah Berkas PDF</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="file"
-                              accept=".pdf"
-                              onChange={handleFileUpload}
-                              className="block w-full text-xs text-gray-505 dark:text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 dark:file:bg-brand-500/10 dark:file:text-brand-400 cursor-pointer"
-                            />
-                            {uploadingFile && <span className="text-[10px] text-gray-450 animate-pulse shrink-0">Sedang mengunggah...</span>}
-                          </div>
+                        
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleMoveBlock(index, "UP")}
+                            disabled={index === 0}
+                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                            title="Pindah Ke Atas"
+                          >
+                            ⬆️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveBlock(index, "DOWN")}
+                            disabled={index === editorBlocks.length - 1}
+                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                            title="Pindah Ke Bawah"
+                          >
+                            ⬇️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBlock(index)}
+                            className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 hover:text-red-700 cursor-pointer ml-1"
+                            title="Hapus Blok"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
+                      </div>
+
+                      {/* Block Content Inputs */}
+                      {block.type === "text" ? (
                         <div>
-                          <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">Atau Masukkan URL PDF Manual</label>
-                          <input
-                            type="text"
-                            value={newMediaUrl}
-                            onChange={(e) => setNewMediaUrl(e.target.value)}
-                            placeholder="https://example.com/file.pdf"
-                            className="w-full text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-855 p-1.5 text-gray-850 dark:text-white outline-none"
+                          <textarea
+                            value={block.value}
+                            onChange={(e) => handleUpdateBlockValue(index, e.target.value)}
+                            placeholder="Ketik konten teks/markdown di sini... Anda bisa menggunakan **tebal**, *miring*, dan # header."
+                            rows={4}
+                            className="w-full text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 py-2 px-3 text-gray-800 outline-none transition focus:border-brand-500 dark:text-white font-sans"
                           />
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      ) : block.type === "video" ? (
+                        <div className="space-y-2.5">
+                          <div>
+                            <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">Judul Video</label>
+                            <input
+                              type="text"
+                              value={block.title}
+                              onChange={(e) => handleUpdateBlockTitle(index, e.target.value)}
+                              placeholder="Masukkan judul video (contoh: Video Definisi Aset Tetap)"
+                              className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-955 p-2 text-gray-850 dark:text-white outline-none focus:border-brand-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">URL Video YouTube</label>
+                            <input
+                              type="text"
+                              value={block.value}
+                              onChange={(e) => handleUpdateBlockValue(index, e.target.value)}
+                              placeholder="Contoh: https://www.youtube.com/watch?v=..."
+                              className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-955 p-2 text-gray-850 dark:text-white outline-none focus:border-brand-500"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5">
+                          <div>
+                            <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">Judul Dokumen</label>
+                            <input
+                              type="text"
+                              value={block.title}
+                              onChange={(e) => handleUpdateBlockTitle(index, e.target.value)}
+                              placeholder="Masukkan judul dokumen (contoh: PDF Harta Berwujud Perpajakan)"
+                              className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-955 p-2 text-gray-855 dark:text-white outline-none focus:border-brand-500"
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">Unggah File PDF</label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="file"
+                                  accept=".pdf"
+                                  onChange={(e) => handleBlockFileUpload(index, e)}
+                                  className="block w-full text-xs text-gray-505 dark:text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 dark:file:bg-brand-500/10 dark:file:text-brand-400 cursor-pointer"
+                                />
+                                {uploadingFile && <span className="text-[10px] text-gray-450 animate-pulse shrink-0">Mengunggah...</span>}
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5">Atau Masukkan URL PDF Manual</label>
+                              <input
+                                type="text"
+                                value={block.value}
+                                onChange={(e) => handleUpdateBlockValue(index, e.target.value)}
+                                placeholder="https://example.com/materi.pdf"
+                                className="w-full text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-955 p-2 text-gray-855 dark:text-white outline-none focus:border-brand-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
 
+                {/* Add block controls */}
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200 dark:border-gray-800">
                   <button
                     type="button"
-                    onClick={handleAddMediaItem}
-                    className="w-full text-xs py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20 font-bold rounded transition border border-brand-100 dark:border-brand-500/20 cursor-pointer"
+                    onClick={() => handleAddBlock("text")}
+                    className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-750 dark:text-gray-300 transition cursor-pointer"
                   >
-                    + Tambahkan Lampiran Media ini
+                    <Plus className="w-3.5 h-3.5" />
+                    + Blok Teks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddBlock("video")}
+                    className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-750 dark:text-gray-300 transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    + Video YouTube
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddBlock("pdf")}
+                    className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-750 dark:text-gray-300 transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    + Dokumen PDF
                   </button>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Konten Materi</label>
-                <textarea
-                  value={formContent}
-                  onChange={(e) => setFormContent(e.target.value)}
-                  placeholder="Ketik isi materi lengkap..."
-                  rows={8}
-                  className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent py-2 px-3 text-gray-800 outline-none transition focus:border-brand-500 dark:text-white font-sans text-sm"
-                />
               </div>
 
               <div className="flex justify-end gap-3 pt-2">

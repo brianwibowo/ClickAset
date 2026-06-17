@@ -1,6 +1,6 @@
-# Product Requirement Document (PRD): ClickAset
+# Product Requirement Document (PRD): CLICKASET
 
-ClickAset adalah platform web pembelajaran interaktif berbasis game (*gamified interactive learning platform*) yang dirancang khusus untuk membantu siswa dan mahasiswa akuntansi memahami konsep **Penyesuaian Penyusutan Aset Tetap** sesuai dengan standar SAK (Standar Akuntansi Keuangan) dan Ketentuan Perpajakan di Indonesia.
+CLICKASET adalah platform web pembelajaran interaktif berbasis game (*gamified interactive learning platform*) yang dirancang khusus untuk membantu siswa dan mahasiswa akuntansi memahami konsep **Penyesuaian Penyusutan Aset Tetap** sesuai dengan standar SAK (Standar Akuntansi Keuangan) dan Ketentuan Perpajakan di Indonesia.
 
 ---
 
@@ -11,7 +11,7 @@ ClickAset adalah platform web pembelajaran interaktif berbasis game (*gamified i
 * Minimnya media pembelajaran yang memadukan teori akuntansi SAK dan perpajakan secara interaktif dan visual.
 * Rendahnya keterlibatan siswa (*student engagement*) dalam metode pembelajaran konvensional.
 
-### Solusi ClickAset
+### Solusi CLICKASET
 * **Materi Belajar Interaktif & Dinamis:** Menyajikan komparasi SAK dan Pajak secara visual, dengan materi yang dapat dikelola (CRUD) langsung oleh Guru.
 * **Simulator Siklus Aset (6 Tahap):** Pengguna berperan langsung sebagai staf akuntansi yang memegang kontrol dari pembelian aset hingga pencatatan jurnal penyesuaian.
 * **Kuis Edukasi Multiplayer (Self-Paced):** Kuis diaktifkan oleh Guru, kemudian siswa dapat menjawab dengan kecepatan masing-masing (*self-paced*). Peringkat siswa di-update secara dinamis di papan peringkat (*leaderboard*).
@@ -141,7 +141,7 @@ Siswa menggunakan form langkah-demi-langkah (Preline UI Stepper/Wizard) dengan i
 
 ## 6. Desain Visual & UI Guidelines (Aesthetic System)
 
-Untuk mencapai desain yang konsisten, modern, dan premium, ClickAset akan menggunakan penuh sistem desain dan styling bawaan dari **TailAdmin React Dashboard Template**:
+Untuk mencapai desain yang konsisten, modern, dan premium, CLICKASET akan menggunakan penuh sistem desain dan styling bawaan dari **TailAdmin React Dashboard Template**:
 * **Color Palette (TailAdmin Colors):**
   * **Slate Dark Backgrounds:** Menggunakan warna gelap slate khas TailAdmin (`dark:bg-boxdark` untuk card, `dark:bg-boxdark-2` untuk background body/halaman).
   * **Accent Color:** Menggunakan warna biru brand bawaan TailAdmin (`text-primary` / `bg-primary`) untuk sorotan utama, tombol aktif, dan penanda posisi menu.

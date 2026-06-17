@@ -646,8 +646,8 @@ const Simulasi: React.FC = () => {
               {/* Visual Delivery Animation Canvas */}
               <div className="relative h-[250px] bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between p-4 shadow-inner">
                 <div className="flex justify-between items-center text-xs text-slate-400">
-                  <span className="flex items-center gap-1"><Info className="size-3" /> Dealer ClickAset</span>
-                  <span className="flex items-center gap-1"><Building2 className="size-3" /> PT ClickAset Jaya</span>
+                  <span className="flex items-center gap-1"><Info className="size-3" /> Dealer CLICKASET</span>
+                  <span className="flex items-center gap-1"><Building2 className="size-3" /> PT CLICKASET Jaya</span>
                 </div>
 
                 {/* Road Canvas */}
