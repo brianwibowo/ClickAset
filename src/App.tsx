@@ -4,6 +4,7 @@ import Materi from "./pages/Materi";
 import Simulasi from "./pages/Simulasi";
 import Kuis from "./pages/Kuis";
 import About from "./pages/About";
+import Profile from "./pages/Profile";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 
@@ -17,6 +18,7 @@ function App() {
           <Route path="/simulasi" element={<Simulasi />} />
           <Route path="/kuis" element={<Kuis />} />
           <Route path="/about" element={<About />} />
+          <Route path="/profile" element={<Profile />} />
         </Route>
 
         {/* Auth Full Screen Pages */}

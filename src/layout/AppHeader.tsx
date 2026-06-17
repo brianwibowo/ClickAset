@@ -19,6 +19,8 @@ const AppHeader: React.FC = () => {
         return "Kuis Interaktif";
       case "/about":
         return "Tentang CLICKASET";
+      case "/profile":
+        return "Profil Pengguna";
       case "/signin":
         return "Masuk Ke Akun";
       case "/signup":
@@ -93,15 +95,21 @@ const AppHeader: React.FC = () => {
         {/* User Info */}
         {user ? (
           <div className="flex items-center gap-3 pl-3 border-l border-stroke dark:border-stroke-dark">
-            <div className="text-right hidden sm:block">
-              <p className="text-xs font-bold text-black dark:text-white leading-none">{user.full_name}</p>
-              <p className="text-[9px] text-[#3B919B] dark:text-[#68AEB8] uppercase tracking-wider font-bold mt-1">
-                {user.role}
-              </p>
-            </div>
-            <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[#3B919B]/10 dark:bg-[#68AEB8]/10 text-[#3B919B] dark:text-[#68AEB8] font-bold text-xs border border-[#3B919B]/30 mr-1">
-              {user.full_name.charAt(0).toUpperCase()}
-            </div>
+            <Link to="/profile" className="flex items-center gap-3 hover:opacity-85 transition-opacity" title="Lihat Profil">
+              <div className="text-right hidden sm:block">
+                <p className="text-xs font-bold text-black dark:text-white leading-none">{user.full_name}</p>
+                <p className="text-[9px] text-[#3B919B] dark:text-[#68AEB8] uppercase tracking-wider font-bold mt-1">
+                  {user.role}
+                </p>
+              </div>
+              <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[#3B919B]/10 dark:bg-[#68AEB8]/10 text-[#3B919B] dark:text-[#68AEB8] font-bold text-xs border border-[#3B919B]/30 mr-1 overflow-hidden">
+                {user.avatar_url ? (
+                  <img src={user.avatar_url} alt={user.full_name} className="w-full h-full object-cover" />
+                ) : (
+                  user.full_name.charAt(0).toUpperCase()
+                )}
+              </div>
+            </Link>
             <button
               onClick={() => {
                 if (window.confirm("Apakah Anda yakin ingin keluar?")) {

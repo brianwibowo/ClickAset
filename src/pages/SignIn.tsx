@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { User, Lock, Phone, ArrowLeft } from "lucide-react";
 import { supabase } from "../utils/supabaseClient";
@@ -15,6 +15,41 @@ const SignIn: React.FC = () => {
   const [resetUsername, setResetUsername] = useState("");
   const [resetPhone, setResetPhone] = useState("");
   const [newPassword, setNewPassword] = useState("");
+
+  useEffect(() => {
+    const seedDefaultUsers = async () => {
+      try {
+        const { data: users } = await supabase.from("users").select("*");
+        const registeredUsers = users || [];
+        
+        const hasGuru = registeredUsers.some((u: any) => u.username.toLowerCase() === "guru");
+        const hasSiswa = registeredUsers.some((u: any) => u.username.toLowerCase() === "siswa");
+        
+        if (!hasGuru) {
+          await supabase.from("users").insert({
+            username: "guru",
+            password: "guru",
+            phone_number: "08123456789",
+            full_name: "Ibu Indah (Guru Akuntansi)",
+            role: "GURU"
+          });
+        }
+        if (!hasSiswa) {
+          await supabase.from("users").insert({
+            username: "siswa",
+            password: "siswa",
+            phone_number: "08987654321",
+            full_name: "Budi Pratama",
+            role: "SISWA"
+          });
+        }
+      } catch (err) {
+        console.warn("Autoseeding default users failed:", err);
+      }
+    };
+    
+    seedDefaultUsers();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
