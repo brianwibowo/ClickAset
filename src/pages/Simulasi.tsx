@@ -1,32 +1,36 @@
 import React, { useState, useEffect } from "react";
-import { 
-  ResponsiveContainer, 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend 
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend
 } from "recharts";
-import { 
-  ArrowRight, 
-  ArrowLeft, 
-  Calendar, 
-  DollarSign, 
-  CheckCircle2, 
-  AlertTriangle, 
-  TrendingDown, 
-  RotateCcw, 
-  Sparkles, 
-  Truck, 
-  Building2, 
-  Play, 
-  Check, 
+import {
+  ArrowRight,
+  ArrowLeft,
+  Calendar,
+  DollarSign,
+  CheckCircle2,
+  AlertTriangle,
+  TrendingDown,
+  RotateCcw,
+  Sparkles,
+  Truck,
+  Building2,
+  Play,
+  Check,
   Info,
   BookOpen,
-  Award
+  Award,
+  Trash2,
+  Download,
+  History
 } from "lucide-react";
+import { jsPDF } from "jspdf";
 
 // Types
 interface SAKRow {
@@ -76,6 +80,11 @@ const Simulasi: React.FC = () => {
   const [biayaBbn, setBiayaBbn] = useState<number>(5000000);
   const [totalPerolehan, setTotalPerolehan] = useState<number>(250000000);
 
+  // Formatted string states for Indonesian local currency input format
+  const [hargaBeliInput, setHargaBeliInput] = useState<string>("240.000.000");
+  const [biayaKirimInput, setBiayaKirimInput] = useState<string>("5.000.000");
+  const [biayaBbnInput, setBiayaBbnInput] = useState<string>("5.000.000");
+
   // Step 1 Animation
   const [isTruckMoving, setIsTruckMoving] = useState<boolean>(false);
   const [truckDone, setTruckDone] = useState<boolean>(false);
@@ -94,6 +103,7 @@ const Simulasi: React.FC = () => {
   const [metodePajak, setMetodePajak] = useState<"GL" | "SM">("GL");
   const [nilaiResiduSAK, setNilaiResiduSAK] = useState<number>(10000000);
   const [masaManfaatSAK, setMasaManfaatSAK] = useState<number>(8);
+  const [nilaiResiduSAKInput, setNilaiResiduSAKInput] = useState<string>("10.000.000");
 
   // Step 5: Perhitungan
   const [tabelSAK, setTabelSAK] = useState<SAKRow[]>([]);
@@ -110,6 +120,10 @@ const Simulasi: React.FC = () => {
   const [journalSuccess, setJournalSuccess] = useState<boolean>(false);
   const [journalFeedback, setJournalFeedback] = useState<string>("");
   const [confettiParticles, setConfettiParticles] = useState<any[]>([]);
+
+  // Simulation History state
+  const [historyList, setHistoryList] = useState<any[]>([]);
+  const [selectedHistoryView, setSelectedHistoryView] = useState<any | null>(null);
 
   // Auto calculate total perolehan on Step 1 changes
   useEffect(() => {
@@ -129,6 +143,11 @@ const Simulasi: React.FC = () => {
     }
   }, [selectedGolongan]);
 
+  // Load/refresh history on step changes or mount
+  useEffect(() => {
+    refreshHistoryList();
+  }, [step]);
+
   // Trigger Calculations when step 5 is loaded
   useEffect(() => {
     if (step === 5) {
@@ -144,6 +163,14 @@ const Simulasi: React.FC = () => {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(val);
+  };
+
+  // Format numeric value to Indonesian thousands dot separator (e.g. 250000 -> "250.000")
+  const formatRibuan = (val: number | string) => {
+    if (val === undefined || val === null || val === "") return "";
+    const numStr = String(val).replace(/[^0-9]/g, "");
+    if (!numStr) return "";
+    return new Intl.NumberFormat("id-ID").format(Number(numStr));
   };
 
   // Run Step 1 Truck Animation
@@ -198,7 +225,7 @@ const Simulasi: React.FC = () => {
   // Central Calculation Engine for SAK & Pajak
   const calculateSchedules = () => {
     const perolehan = totalPerolehan;
-    
+
     // --- SAK CALCULATIONS ---
     const residuSAK = Number(nilaiResiduSAK) || 0;
     const nSAK = Number(masaManfaatSAK) || 1;
@@ -361,7 +388,7 @@ const Simulasi: React.FC = () => {
     // Build Chart Data
     // Combine years
     const allYears = Array.from(new Set([...sakRows.map(r => r.year), ...pajakRows.map(r => r.year)])).sort();
-    
+
     // Initial year 0 for starting perolehan
     const startYear = Math.min(...allYears) - 1;
     const cData: ChartDataPoint[] = [{
@@ -417,6 +444,7 @@ const Simulasi: React.FC = () => {
       setJournalFeedback("Luar Biasa! Jurnal Penyesuaian Anda 100% BENAR dan BALANCE!");
       setJournalSuccess(true);
       triggerConfetti();
+      saveSimulationToHistory();
     }
   };
 
@@ -464,6 +492,342 @@ const Simulasi: React.FC = () => {
     setJournalFeedback("");
     setConfettiParticles([]);
     setTruckDone(false);
+
+    // Reset formatted inputs
+    setHargaBeliInput("240.000.000");
+    setBiayaKirimInput("5.000.000");
+    setBiayaBbnInput("5.000.000");
+    setNilaiResiduSAKInput("10.000.000");
+  };
+
+  const refreshHistoryList = () => {
+    const userJson = localStorage.getItem("clickaset_user");
+    if (userJson) {
+      const user = JSON.parse(userJson);
+      const userId = user.id || user.email || "guest";
+      const historyKey = `clickaset_sim_history_${userId}`;
+      const existingHistoryJson = localStorage.getItem(historyKey);
+      setHistoryList(existingHistoryJson ? JSON.parse(existingHistoryJson) : []);
+    } else {
+      setHistoryList([]);
+    }
+  };
+
+  const saveSimulationToHistory = () => {
+    const userJson = localStorage.getItem("clickaset_user");
+    if (!userJson) return;
+    const user = JSON.parse(userJson);
+    const userId = user.id || user.email || "guest";
+
+    const historyKey = `clickaset_sim_history_${userId}`;
+    const existingHistoryJson = localStorage.getItem(historyKey);
+    const existingHistory = existingHistoryJson ? JSON.parse(existingHistoryJson) : [];
+
+    const newHistoryItem = {
+      id: "sim-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toISOString(),
+      namaAset,
+      tanggalBeli,
+      hargaBeli,
+      biayaKirim,
+      biayaBbn,
+      totalPerolehan,
+      tanggalPakai,
+      tanggalMulaiSusut,
+      selectedGolongan,
+      metodeSAK,
+      metodePajak,
+      nilaiResiduSAK,
+      masaManfaatSAK,
+      bebanSAKThn1: tabelSAK[0]?.beban || 0,
+      bebanPajakThn1: tabelPajak[0]?.beban || 0,
+      tabelSAK,
+      tabelPajak,
+      chartData
+    };
+
+    const updatedHistory = [newHistoryItem, ...existingHistory];
+    localStorage.setItem(historyKey, JSON.stringify(updatedHistory));
+    refreshHistoryList();
+  };
+
+  const downloadSimulationPDF = (data: any) => {
+    const doc = new jsPDF();
+
+    doc.setFont("helvetica");
+
+    // Kop Surat (Header Panel)
+    doc.setFillColor(59, 145, 155);
+    doc.rect(0, 0, 210, 8, "F");
+
+    // Logo & Title
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(59, 145, 155);
+    doc.text("CLICKASET", 15, 23);
+
+    // Subtitle
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text("Aplikasi Edukasi Siklus Hidup Aset & Akuntansi Penyusutan", 15, 29);
+
+    // Right-aligned Date & Author
+    const formattedDate = new Date(data.timestamp || new Date()).toLocaleString("id-ID", {
+      dateStyle: "medium",
+      timeStyle: "short"
+    });
+    doc.setFontSize(9);
+    doc.setTextColor(120, 120, 120);
+    doc.text(`Tanggal: ${formattedDate}`, 195, 23, { align: "right" });
+    doc.text("Author: CLICKASET Education Team", 195, 29, { align: "right" });
+
+    // Decorative Line
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.5);
+    doc.line(15, 34, 195, 34);
+
+    // Title
+    doc.setFontSize(15);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 30, 30);
+    doc.text("LAPORAN SIKLUS HIDUP & PENYUSUTAN ASET", 15, 45);
+
+    // Section 1: Detail Aset
+    doc.setFontSize(11);
+    doc.setTextColor(59, 145, 155);
+    doc.text("1. Informasi & Perolehan Aset", 15, 54);
+
+    doc.setDrawColor(230, 230, 230);
+    doc.setFillColor(248, 249, 250);
+    doc.rect(15, 57, 180, 50, "FD");
+
+    doc.setFontSize(9);
+    doc.setTextColor(50, 50, 50);
+
+    let currentY = 63;
+    const drawRow = (label: string, value: string) => {
+      doc.setFont("helvetica", "bold");
+      doc.text(label, 20, currentY);
+      doc.setFont("helvetica", "normal");
+      doc.text(value, 95, currentY);
+      currentY += 5.5;
+    };
+
+    drawRow("Nama Aset", `: ${data.namaAset}`);
+    drawRow("Tanggal Perolehan (Beli)", `: ${data.tanggalBeli}`);
+    drawRow("Tanggal Mulai Digunakan", `: ${data.tanggalPakai}`);
+    drawRow("Tanggal Mulai Penyusutan", `: ${data.tanggalMulaiSusut}`);
+    drawRow("Harga Pembelian", `: ${formatRupiah(data.hargaBeli)}`);
+    drawRow("Biaya Kirim", `: ${formatRupiah(data.biayaKirim)}`);
+    drawRow("Biaya Balik Nama / Instalasi", `: ${formatRupiah(data.biayaBbn)}`);
+    drawRow("Total Harga Perolehan", `: ${formatRupiah(data.totalPerolehan)}`);
+
+    // Section 2: Kebijakan
+    currentY = 114;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(59, 145, 155);
+    doc.text("2. Kebijakan Akuntansi & Fiskal (Pajak)", 15, currentY);
+
+    currentY += 3;
+    doc.setFillColor(248, 249, 250);
+    doc.rect(15, currentY, 180, 28, "FD");
+
+    currentY += 6;
+    const getMetodeName = (code: string) => code === "GL" ? "Garis Lurus (Straight Line)" : "Saldo Menurun (Double Declining)";
+    const rulePajak = GOLONGAN_RULES[data.selectedGolongan as GolonganKey];
+    
+    drawRow("Metode Akuntansi (SAK)", `: ${getMetodeName(data.metodeSAK)}`);
+    drawRow("Masa Manfaat / Nilai Residu (SAK)", `: ${data.masaManfaatSAK} Tahun / ${formatRupiah(data.nilaiResiduSAK)}`);
+    drawRow("Golongan Pajak (Fiskal)", `: ${rulePajak?.name || data.selectedGolongan}`);
+    drawRow("Masa Manfaat & Metode Pajak", `: ${rulePajak?.years || 8} Tahun / ${getMetodeName(data.metodePajak)}`);
+
+    // Section 3: Jurnal Penyesuaian
+    currentY = 152;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(59, 145, 155);
+    doc.text("3. Jurnal Penyesuaian Akhir Tahun Ke-1 (Komersial)", 15, currentY);
+
+    currentY += 3;
+    doc.setFillColor(59, 145, 155);
+    doc.rect(15, currentY, 180, 7, "F");
+    
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.text("Keterangan / Akun", 20, currentY + 4.5);
+    doc.text("Ref", 110, currentY + 4.5);
+    doc.text("Debit (Rp)", 135, currentY + 4.5);
+    doc.text("Kredit (Rp)", 165, currentY + 4.5);
+
+    currentY += 7;
+    doc.setTextColor(50, 50, 50);
+    doc.setDrawColor(210, 210, 210);
+    
+    // Row 1: Debit
+    doc.rect(15, currentY, 180, 7);
+    doc.setFont("helvetica", "normal");
+    doc.text("Beban Penyusutan Aset Tetap", 20, currentY + 4.5);
+    doc.text("5-101", 110, currentY + 4.5);
+    doc.text(formatRupiah(data.bebanSAKThn1), 135, currentY + 4.5);
+    doc.text("-", 165, currentY + 4.5);
+
+    currentY += 7;
+    // Row 2: Kredit
+    doc.rect(15, currentY, 180, 7);
+    doc.text("   Akumulasi Penyusutan Aset Tetap", 20, currentY + 4.5);
+    doc.text("1-201", 110, currentY + 4.5);
+    doc.text("-", 135, currentY + 4.5);
+    doc.text(formatRupiah(data.bebanSAKThn1), 165, currentY + 4.5);
+
+    currentY += 7;
+    // Row 3: Total
+    doc.rect(15, currentY, 180, 7);
+    doc.setFont("helvetica", "bold");
+    doc.text("TOTAL", 20, currentY + 4.5);
+    doc.text("", 110, currentY + 4.5);
+    doc.text(formatRupiah(data.bebanSAKThn1), 135, currentY + 4.5);
+    doc.text(formatRupiah(data.bebanSAKThn1), 165, currentY + 4.5);
+
+    // Section 4: Rekonsiliasi
+    currentY = 188;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(59, 145, 155);
+    doc.text("4. Rekonsiliasi Depresiasi Tahun Pertama (Komersial vs Pajak)", 15, currentY);
+
+    currentY += 3;
+    doc.setFillColor(248, 249, 250);
+    doc.rect(15, currentY, 180, 22, "FD");
+
+    currentY += 5.5;
+    doc.setFontSize(9);
+    drawRow("Penyusutan Komersial (SAK)", `: ${formatRupiah(data.bebanSAKThn1)}`);
+    drawRow("Penyusutan Fiskal (Pajak)", `: ${formatRupiah(data.bebanPajakThn1)}`);
+    const selisihVal = Math.abs(data.bebanSAKThn1 - data.bebanPajakThn1);
+    const koreksiTipe = data.bebanSAKThn1 > data.bebanPajakThn1 ? "Koreksi Fiskal Positif" : "Koreksi Fiskal Negatif";
+    drawRow("Selisih Rekonsiliasi (Beda Waktu)", `: ${formatRupiah(selisihVal)} (${koreksiTipe})`);
+
+    // Section 5: Comparative Table
+    currentY = 222;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(59, 145, 155);
+    doc.text("5. Jadwal Penyusutan Komparatif (Beban per Tahun)", 15, currentY);
+
+    currentY += 3;
+    doc.setFillColor(59, 145, 155);
+    doc.rect(15, currentY, 180, 6, "F");
+
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text("Tahun", 18, currentY + 4.5);
+    doc.text("Beban Akuntansi (SAK)", 45, currentY + 4.5);
+    doc.text("Nilai Buku SAK", 95, currentY + 4.5);
+    doc.text("Beban Pajak (Fiskal)", 135, currentY + 4.5);
+    doc.text("Nilai Buku Pajak", 168, currentY + 4.5);
+
+    currentY += 6;
+    doc.setFontSize(7.5);
+    doc.setTextColor(50, 50, 50);
+
+    const maxLines = Math.max(data.tabelSAK?.length || 0, data.tabelPajak?.length || 0);
+    const printLines = Math.min(maxLines, 5);
+
+    for (let i = 0; i < printLines; i++) {
+      const sakRowObj = data.tabelSAK?.[i];
+      const pajakRowObj = data.tabelPajak?.[i];
+
+      doc.rect(15, currentY, 180, 5.5);
+      doc.text(`Thn ${i + 1}`, 18, currentY + 4);
+      doc.text(sakRowObj ? formatRupiah(sakRowObj.beban) : "-", 45, currentY + 4);
+      doc.text(sakRowObj ? formatRupiah(sakRowObj.nilaiBuku) : "-", 95, currentY + 4);
+      doc.text(pajakRowObj ? formatRupiah(pajakRowObj.beban) : "-", 135, currentY + 4);
+      doc.text(pajakRowObj ? formatRupiah(pajakRowObj.nilaiBuku) : "-", 168, currentY + 4);
+      currentY += 5.5;
+    }
+
+    if (maxLines > 5) {
+      doc.rect(15, currentY, 180, 5);
+      doc.setFont("helvetica", "italic");
+      doc.text(`... (+ ${maxLines - 5} tahun berikutnya disembunyikan untuk kerapian halaman)`, 20, currentY + 3.5);
+      currentY += 5;
+    }
+
+    // Footer
+    currentY = 270;
+    doc.setDrawColor(220, 220, 220);
+    doc.line(15, currentY, 195, currentY);
+
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(150, 150, 150);
+    doc.text("Laporan ini diunduh secara resmi melalui aplikasi CLICKASET.", 15, currentY + 4);
+    doc.text("CLICKASET - Media Interaktif Pembelajaran Siklus Aset Tetap, Golongan Perpajakan, dan Jurnal Penyesuaian.", 15, currentY + 7.5);
+
+    doc.setFont("helvetica", "normal");
+    doc.text("Dokumen Sah & Digital", 195, currentY + 4, { align: "right" });
+    
+    const docFilename = `Laporan_ClickAset_${data.namaAset.replace(/\s+/g, "_")}.pdf`;
+    doc.save(docFilename);
+  };
+
+  const handleDeleteHistory = (id: string) => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus riwayat simulasi ini?")) return;
+    
+    const userJson = localStorage.getItem("clickaset_user");
+    if (!userJson) return;
+    const user = JSON.parse(userJson);
+    const userId = user.id || user.email || "guest";
+
+    const historyKey = `clickaset_sim_history_${userId}`;
+    const existingHistoryJson = localStorage.getItem(historyKey);
+    if (!existingHistoryJson) return;
+
+    const existingHistory = JSON.parse(existingHistoryJson);
+    const updatedHistory = existingHistory.filter((item: any) => item.id !== id);
+    localStorage.setItem(historyKey, JSON.stringify(updatedHistory));
+    
+    refreshHistoryList();
+  };
+
+  const handleLoadHistory = (item: any) => {
+    setNamaAset(item.namaAset);
+    setTanggalBeli(item.tanggalBeli);
+    setHargaBeli(item.hargaBeli);
+    setBiayaKirim(item.biayaKirim);
+    setBiayaBbn(item.biayaBbn);
+    setTanggalPakai(item.tanggalPakai);
+    setTanggalMulaiSusut(item.tanggalMulaiSusut);
+    setSelectedGolongan(item.selectedGolongan);
+    setMetodeSAK(item.metodeSAK || "GL");
+    setMetodePajak(item.metodePajak || "GL");
+    setNilaiResiduSAK(item.nilaiResiduSAK || 0);
+    setMasaManfaatSAK(item.masaManfaatSAK || 8);
+    setTabelSAK(item.tabelSAK || []);
+    setTabelPajak(item.tabelPajak || []);
+    
+    // Set formatted inputs
+    setHargaBeliInput(formatRibuan(item.hargaBeli));
+    setBiayaKirimInput(formatRibuan(item.biayaKirim));
+    setBiayaBbnInput(formatRibuan(item.biayaBbn));
+    setNilaiResiduSAKInput(formatRibuan(item.nilaiResiduSAK));
+
+    setJurnalDebitAkun("");
+    setJurnalDebitNilai("");
+    setJurnalKreditAkun("");
+    setJurnalKreditNilai("");
+    setJournalAttempt(false);
+    setJournalSuccess(false);
+    setJournalFeedback("");
+    
+    // Close modal
+    setSelectedHistoryView(null);
+    
+    setStep(5);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -527,25 +891,22 @@ const Simulasi: React.FC = () => {
                 <button
                   onClick={() => step > s.num && setStep(s.num)}
                   disabled={step < s.num}
-                  className={`flex items-center justify-center size-8 rounded-full text-xs font-bold transition-all ${
-                    isCompleted
+                  className={`flex items-center justify-center size-8 rounded-full text-xs font-bold transition-all ${isCompleted
                       ? "bg-success-500 text-white cursor-pointer"
                       : isActive
-                      ? "bg-brand-500 text-white ring-4 ring-brand-100 dark:ring-brand-500/20"
-                      : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 cursor-not-allowed"
-                  }`}
+                        ? "bg-brand-500 text-white ring-4 ring-brand-100 dark:ring-brand-500/20"
+                        : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 cursor-not-allowed"
+                    }`}
                 >
                   {isCompleted ? <Check className="size-4 stroke-[3px]" /> : s.num}
                 </button>
-                <span className={`text-xs font-medium ml-2 hidden md:inline ${
-                  isActive ? "text-brand-500 dark:text-brand-400 font-semibold" : isCompleted ? "text-success-600 dark:text-success-500" : "text-gray-400 dark:text-gray-600"
-                }`}>
+                <span className={`text-xs font-medium ml-2 hidden md:inline ${isActive ? "text-brand-500 dark:text-brand-400 font-semibold" : isCompleted ? "text-success-600 dark:text-success-500" : "text-gray-400 dark:text-gray-600"
+                  }`}>
                   {s.label}
                 </span>
                 {s.num < 6 && (
-                  <div className={`h-[2px] w-8 md:w-16 ml-3 ${
-                    isCompleted ? "bg-success-500" : "bg-gray-200 dark:bg-gray-800"
-                  }`} />
+                  <div className={`h-[2px] w-8 md:w-16 ml-3 ${isCompleted ? "bg-success-500" : "bg-gray-200 dark:bg-gray-800"
+                    }`} />
                 )}
               </div>
             );
@@ -555,7 +916,7 @@ const Simulasi: React.FC = () => {
 
       {/* MAIN STEP CARDS */}
       <div className="bg-white border border-gray-200 dark:border-gray-800 dark:bg-gray-950 rounded-2xl p-6 shadow-theme-md min-h-[400px] flex flex-col justify-between">
-        
+
         {/* STEP 1: PEMBELIAN ASET */}
         {step === 1 && (
           <div className="space-y-6">
@@ -603,10 +964,15 @@ const Simulasi: React.FC = () => {
                       Harga Beli (Rp)
                     </label>
                     <input
-                      type="number"
-                      value={hargaBeli}
-                      onChange={(e) => setHargaBeli(Math.max(0, Number(e.target.value)))}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition"
+                      type="text"
+                      value={hargaBeliInput}
+                      onChange={(e) => {
+                        const cleanVal = e.target.value.replace(/[^0-9]/g, "");
+                        setHargaBeliInput(formatRibuan(cleanVal));
+                        setHargaBeli(Number(cleanVal) || 0);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition font-mono"
+                      placeholder="Contoh: 240.000.000"
                     />
                   </div>
                   <div>
@@ -614,10 +980,15 @@ const Simulasi: React.FC = () => {
                       Biaya Kirim (Rp)
                     </label>
                     <input
-                      type="number"
-                      value={biayaKirim}
-                      onChange={(e) => setBiayaKirim(Math.max(0, Number(e.target.value)))}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition"
+                      type="text"
+                      value={biayaKirimInput}
+                      onChange={(e) => {
+                        const cleanVal = e.target.value.replace(/[^0-9]/g, "");
+                        setBiayaKirimInput(formatRibuan(cleanVal));
+                        setBiayaKirim(Number(cleanVal) || 0);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition font-mono"
+                      placeholder="Contoh: 5.000.000"
                     />
                   </div>
                   <div>
@@ -625,10 +996,15 @@ const Simulasi: React.FC = () => {
                       Biaya Balik Nama / BBN (Rp)
                     </label>
                     <input
-                      type="number"
-                      value={biayaBbn}
-                      onChange={(e) => setBiayaBbn(Math.max(0, Number(e.target.value)))}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition"
+                      type="text"
+                      value={biayaBbnInput}
+                      onChange={(e) => {
+                        const cleanVal = e.target.value.replace(/[^0-9]/g, "");
+                        setBiayaBbnInput(formatRibuan(cleanVal));
+                        setBiayaBbn(Number(cleanVal) || 0);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition font-mono"
+                      placeholder="Contoh: 5.000.000"
                     />
                   </div>
                 </div>
@@ -659,9 +1035,8 @@ const Simulasi: React.FC = () => {
 
                   {/* Truck/Asset Container */}
                   <div
-                    className={`absolute left-10 flex flex-col items-center z-20 transition-all duration-[2500ms] ease-in-out ${
-                      isTruckMoving ? "translate-x-[150px] sm:translate-x-[250px] md:translate-x-[350px] lg:translate-x-[200px] xl:translate-x-[300px]" : truckDone ? "translate-x-[150px] sm:translate-x-[250px] md:translate-x-[350px] lg:translate-x-[200px] xl:translate-x-[300px]" : "translate-x-0"
-                    }`}
+                    className={`absolute left-10 flex flex-col items-center z-20 transition-all duration-[2500ms] ease-in-out ${isTruckMoving ? "translate-x-[150px] sm:translate-x-[250px] md:translate-x-[350px] lg:translate-x-[200px] xl:translate-x-[300px]" : truckDone ? "translate-x-[150px] sm:translate-x-[250px] md:translate-x-[350px] lg:translate-x-[200px] xl:translate-x-[300px]" : "translate-x-0"
+                      }`}
                   >
                     {/* Floating Asset Text Tag */}
                     <div className="bg-brand-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-lg mb-1 animate-bounce">
@@ -767,10 +1142,10 @@ const Simulasi: React.FC = () => {
                   </h4>
                   <ul className="space-y-2 text-xs text-blue-700 dark:text-blue-300 list-disc list-inside">
                     <li>
-                      <strong>Ketentuan SAK:</strong> Penyusutan dimulai ketika aset **tersedia untuk digunakan**, yaitu ketika ia berada di lokasi dan kondisi yang diperlukan agar mampu beroperasi secara normal (bisa berbeda dari tanggal pembelian).
+                      <strong>Ketentuan SAK:</strong> Penyusutan dimulai ketika aset <strong>tersedia untuk digunakan</strong>, yaitu ketika ia berada di lokasi dan kondisi yang diperlukan agar mampu beroperasi secara normal (bisa berbeda dari tanggal pembelian).
                     </li>
                     <li>
-                      <strong>Ketentuan Pajak (Fiskal):</strong> Secara baku menurut Pasal 11 UU PPh, penyusutan dimulai pada **bulan dilakukannya pengeluaran (pembelian)**, bukan saat mulai pemakaian (kecuali ada izin khusus dari Dirjen Pajak).
+                      <strong>Ketentuan Pajak (Fiskal):</strong> Secara baku menurut Pasal 11 UU PPh, penyusutan dimulai pada <strong>bulan dilakukannya pengeluaran (pembelian)</strong>, bukan saat mulai pemakaian (kecuali ada izin khusus dari Dirjen Pajak).
                     </li>
                   </ul>
                 </div>
@@ -814,7 +1189,7 @@ const Simulasi: React.FC = () => {
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
                   Pilih Golongan Pajak:
                 </label>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {(Object.keys(GOLONGAN_RULES) as GolonganKey[]).map((key) => {
                     const rule = GOLONGAN_RULES[key];
@@ -823,11 +1198,10 @@ const Simulasi: React.FC = () => {
                       <button
                         key={key}
                         onClick={() => handleGuessGolongan(key)}
-                        className={`text-left p-4 rounded-xl border transition-all text-sm flex flex-col justify-between hover:scale-[1.01] ${
-                          isSelected
+                        className={`text-left p-4 rounded-xl border transition-all text-sm flex flex-col justify-between hover:scale-[1.01] ${isSelected
                             ? "border-brand-500 bg-brand-50/50 dark:bg-brand-950/20 dark:border-brand-500"
                             : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
-                        }`}
+                          }`}
                       >
                         <span className="font-bold text-gray-800 dark:text-white">{rule.name}</span>
                         <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">{rule.desc}</span>
@@ -841,11 +1215,10 @@ const Simulasi: React.FC = () => {
 
                 {/* Gamified Feedback */}
                 {hasAttemptedGolongan && golonganFeedback && (
-                  <div className={`p-4 rounded-xl border text-sm flex items-start gap-2.5 animate-fadeIn ${
-                    golonganFeedback.isCorrect
+                  <div className={`p-4 rounded-xl border text-sm flex items-start gap-2.5 animate-fadeIn ${golonganFeedback.isCorrect
                       ? "bg-success-50 border-success-100 text-success-800 dark:bg-success-950/20 dark:border-success-900 dark:text-success-400"
                       : "bg-warning-50 border-warning-100 text-warning-800 dark:bg-warning-950/20 dark:border-warning-900 dark:text-warning-400"
-                  }`}>
+                    }`}>
                     {golonganFeedback.isCorrect ? <CheckCircle2 className="size-5 shrink-0 mt-0.5" /> : <Info className="size-5 shrink-0 mt-0.5" />}
                     <div>
                       <span className="font-semibold">{golonganFeedback.isCorrect ? "Benar!" : "Penjelasan:"}</span>{" "}
@@ -914,11 +1287,15 @@ const Simulasi: React.FC = () => {
                       Nilai Residu (Rp)
                     </label>
                     <input
-                      type="number"
-                      value={nilaiResiduSAK}
-                      min={0}
-                      onChange={(e) => setNilaiResiduSAK(Math.max(0, Number(e.target.value)))}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none"
+                      type="text"
+                      value={nilaiResiduSAKInput}
+                      onChange={(e) => {
+                        const cleanVal = e.target.value.replace(/[^0-9]/g, "");
+                        setNilaiResiduSAKInput(formatRibuan(cleanVal));
+                        setNilaiResiduSAK(Number(cleanVal) || 0);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none font-mono"
+                      placeholder="Contoh: 10.000.000"
                     />
                   </div>
                 </div>
@@ -1011,32 +1388,32 @@ const Simulasi: React.FC = () => {
                 <span className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 block">
                   Kurva Penurunan Nilai Buku Aset (Rupiah)
                 </span>
-                
+
                 <div className="w-full h-[250px] text-xs">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.15} />
                       <XAxis dataKey="year" stroke="#9ca3af" />
-                      <YAxis 
-                        stroke="#9ca3af" 
+                      <YAxis
+                        stroke="#9ca3af"
                         tickFormatter={(value) => `Rp ${(value / 1000000).toFixed(0)}jt`}
                       />
-                      <Tooltip 
+                      <Tooltip
                         formatter={(value: any) => formatRupiah(Number(value))}
                         contentStyle={{ backgroundColor: "#1f2937", border: "none", borderRadius: "8px", color: "#fff" }}
                       />
                       <Legend />
-                      <Line 
-                        type="monotone" 
-                        dataKey="SAK Nilai Buku" 
-                        stroke="#465fff" 
+                      <Line
+                        type="monotone"
+                        dataKey="SAK Nilai Buku"
+                        stroke="#465fff"
                         strokeWidth={2.5}
-                        activeDot={{ r: 8 }} 
+                        activeDot={{ r: 8 }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="Pajak Nilai Buku" 
-                        stroke="#10b981" 
+                      <Line
+                        type="monotone"
+                        dataKey="Pajak Nilai Buku"
+                        stroke="#10b981"
                         strokeWidth={2.5}
                       />
                     </LineChart>
@@ -1050,21 +1427,19 @@ const Simulasi: React.FC = () => {
                 <div className="flex border-b border-gray-200 dark:border-gray-800">
                   <button
                     onClick={() => setActiveTabTable("SAK")}
-                    className={`pb-2 text-sm font-semibold border-b-2 px-4 transition-all ${
-                      activeTabTable === "SAK"
+                    className={`pb-2 text-sm font-semibold border-b-2 px-4 transition-all ${activeTabTable === "SAK"
                         ? "border-brand-500 text-brand-600 dark:text-brand-400"
                         : "border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    }`}
+                      }`}
                   >
                     Akuntansi (SAK)
                   </button>
                   <button
                     onClick={() => setActiveTabTable("Pajak")}
-                    className={`pb-2 text-sm font-semibold border-b-2 px-4 transition-all ${
-                      activeTabTable === "Pajak"
+                    className={`pb-2 text-sm font-semibold border-b-2 px-4 transition-all ${activeTabTable === "Pajak"
                         ? "border-brand-500 text-brand-600 dark:text-brand-400"
                         : "border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    }`}
+                      }`}
                   >
                     Pajak (Fiskal)
                   </button>
@@ -1109,7 +1484,7 @@ const Simulasi: React.FC = () => {
                     Beban penyusutan komersial (SAK) Tahun Ke-1 adalah <strong>{formatRupiah(tabelSAK[0]?.beban || 0)}</strong>, sedangkan versi Pajak adalah <strong>{formatRupiah(tabelPajak[0]?.beban || 0)}</strong>.
                   </p>
                   <p className="leading-relaxed text-[11px]">
-                    Perbedaan ini dinamakan <strong>Beda Waktu (Temporary Difference)</strong>. Di akhir tahun saat pelaporan SPT Badan, selisih beban penyusutan wajib direkonsiliasi melalui **Koreksi Fiskal** sehingga laba kena pajak sesuai dengan aturan UU PPh.
+                    Perbedaan ini dinamakan <strong>Beda Waktu (Temporary Difference)</strong>. Di akhir tahun saat pelaporan SPT Badan, selisih beban penyusutan wajib direkonsiliasi melalui <strong>Koreksi Fiskal</strong> sehingga laba kena pajak sesuai dengan aturan UU PPh.
                   </p>
                 </div>
               </div>
@@ -1132,10 +1507,10 @@ const Simulasi: React.FC = () => {
 
             {!journalSuccess ? (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                
+
                 {/* Ledger Sheet Inputs */}
                 <div className="lg:col-span-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 rounded-xl p-5 space-y-5">
-                  
+
                   {/* Journal Header Info */}
                   <div className="flex justify-between items-center text-xs text-gray-500 border-b border-gray-200 dark:border-gray-800 pb-2">
                     <span><strong>Jurnal Umum Penyesuaian</strong></span>
@@ -1165,9 +1540,12 @@ const Simulasi: React.FC = () => {
                         <input
                           type="text"
                           value={jurnalDebitNilai}
-                          onChange={(e) => setJurnalDebitNilai(e.target.value.replace(/[^0-9]/g, ""))}
+                          onChange={(e) => {
+                            const cleanVal = e.target.value.replace(/[^0-9]/g, "");
+                            setJurnalDebitNilai(formatRibuan(cleanVal));
+                          }}
                           className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white font-mono"
-                          placeholder="Masukkan nominal..."
+                          placeholder="Contoh: 25.000.000"
                         />
                       </div>
                       <div className="text-gray-400 dark:text-gray-600 italic mt-4 md:mt-0 text-[10px] pl-2">
@@ -1196,9 +1574,12 @@ const Simulasi: React.FC = () => {
                         <input
                           type="text"
                           value={jurnalKreditNilai}
-                          onChange={(e) => setJurnalKreditNilai(e.target.value.replace(/[^0-9]/g, ""))}
+                          onChange={(e) => {
+                            const cleanVal = e.target.value.replace(/[^0-9]/g, "");
+                            setJurnalKreditNilai(formatRibuan(cleanVal));
+                          }}
                           className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white font-mono"
-                          placeholder="Masukkan nominal..."
+                          placeholder="Contoh: 25.000.000"
                         />
                       </div>
                       <div className="text-gray-400 dark:text-gray-600 italic mt-4 md:mt-0 text-[10px] pl-2">
@@ -1225,11 +1606,10 @@ const Simulasi: React.FC = () => {
                 {/* Feedback Panel */}
                 <div className="space-y-4">
                   {journalAttempt && (
-                    <div className={`p-4 rounded-xl border text-sm flex items-start gap-2.5 animate-fadeIn ${
-                      journalSuccess
+                    <div className={`p-4 rounded-xl border text-sm flex items-start gap-2.5 animate-fadeIn ${journalSuccess
                         ? "bg-success-50 border-success-100 text-success-800 dark:bg-success-950/20 dark:border-success-900 dark:text-success-400"
                         : "bg-error-50 border-error-100 text-error-800 dark:bg-error-950/20 dark:border-error-900 dark:text-error-400"
-                    }`}>
+                      }`}>
                       {journalSuccess ? <CheckCircle2 className="size-5 shrink-0 mt-0.5" /> : <AlertTriangle className="size-5 shrink-0 mt-0.5" />}
                       <div>
                         <span className="font-bold">{journalSuccess ? "Sukses!" : "Koreksi!"}</span>{" "}
@@ -1237,12 +1617,12 @@ const Simulasi: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  
+
                   <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 rounded-xl p-4 text-xs text-blue-700 dark:text-blue-300">
                     <h5 className="font-bold mb-1.5 flex items-center gap-1"><Info className="size-3.5" /> Aturan Penjurnalan:</h5>
                     <ol className="list-decimal list-inside space-y-1">
-                      <li>Beban Penyusutan bertambah di sisi **Debit** karena merupakan komponen beban operasi perusahaan.</li>
-                      <li>Akumulasi Penyusutan bertambah di sisi **Kredit** sebagai akun kontra-aset pengurang nilai buku aset tetap.</li>
+                      <li>Beban Penyusutan bertambah di sisi <strong>Debit</strong> karena merupakan komponen beban operasi perusahaan.</li>
+                      <li>Akumulasi Penyusutan bertambah di sisi <strong>Kredit</strong> sebagai akun kontra-aset pengurang nilai buku aset tetap.</li>
                     </ol>
                   </div>
                 </div>
@@ -1254,7 +1634,7 @@ const Simulasi: React.FC = () => {
                 <div className="inline-flex items-center justify-center p-3 bg-success-500 rounded-full text-white shadow-lg shadow-success-200 dark:shadow-none mb-2">
                   <Sparkles className="size-8 animate-bounce" />
                 </div>
-                
+
                 <div className="space-y-2">
                   <h4 className="text-xl font-bold text-success-800 dark:text-success-400">
                     Simulasi Siklus Aset Selesai!
@@ -1272,15 +1652,15 @@ const Simulasi: React.FC = () => {
                   <div className="grid grid-cols-2 gap-y-1.5 text-gray-600 dark:text-gray-400">
                     <span>Nama Aset:</span>
                     <span className="font-semibold text-right text-gray-800 dark:text-white">{namaAset}</span>
-                    
+
                     <span>Total Harga Perolehan:</span>
                     <span className="font-semibold text-right text-gray-800 dark:text-white">{formatRupiah(totalPerolehan)}</span>
-                    
+
                     <span>Golongan Pajak:</span>
                     <span className="font-semibold text-right text-gray-800 dark:text-white">
                       {GOLONGAN_RULES[selectedGolongan as GolonganKey]?.name || "Kelompok 2"}
                     </span>
-                    
+
                     <span>Penyusutan SAK Thn 1:</span>
                     <span className="font-semibold text-right text-gray-800 dark:text-white">{formatRupiah(tabelSAK[0]?.beban || 0)}</span>
 
@@ -1292,15 +1672,37 @@ const Simulasi: React.FC = () => {
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <button
                     onClick={handleResetAll}
-                    className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-semibold transition shadow-md"
+                    className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-semibold transition shadow-md cursor-pointer"
                   >
                     Simulasi Aset Lain
                   </button>
                   <button
-                    onClick={() => window.print()}
-                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-semibold transition"
+                    onClick={() => {
+                      downloadSimulationPDF({
+                        timestamp: new Date().toISOString(),
+                        namaAset,
+                        tanggalBeli,
+                        hargaBeli,
+                        biayaKirim,
+                        biayaBbn,
+                        totalPerolehan,
+                        tanggalPakai,
+                        tanggalMulaiSusut,
+                        selectedGolongan,
+                        metodeSAK,
+                        metodePajak,
+                        nilaiResiduSAK,
+                        masaManfaatSAK,
+                        bebanSAKThn1: tabelSAK[0]?.beban || 0,
+                        bebanPajakThn1: tabelPajak[0]?.beban || 0,
+                        tabelSAK,
+                        tabelPajak
+                      });
+                    }}
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold transition shadow-md flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    Cetak Hasil Laporan
+                    <Download className="size-3.5" />
+                    Unduh Hasil Laporan (PDF)
                   </button>
                 </div>
               </div>
@@ -1360,6 +1762,344 @@ const Simulasi: React.FC = () => {
         )}
 
       </div>
+
+      {/* RIWAYAT SIMULASI SECTION */}
+      <div className="bg-white border border-gray-200 dark:border-gray-800 dark:bg-gray-950 rounded-2xl p-6 shadow-theme-md space-y-6">
+        <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-900 pb-4">
+          <div className="p-2 bg-brand-50 dark:bg-brand-950/30 text-brand-500 rounded-lg">
+            <History className="size-5" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-gray-800 dark:text-white font-heading">
+              Riwayat Simulasi Aset Anda
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Pantau, muat kembali, atau unduh laporan PDF resmi dari simulasi siklus aset yang telah selesai.
+            </p>
+          </div>
+        </div>
+
+        {(() => {
+          const userJson = localStorage.getItem("clickaset_user");
+          const user = userJson ? JSON.parse(userJson) : null;
+
+          if (user) {
+            if (historyList.length === 0) {
+              return (
+                <div className="text-center py-12 px-4 space-y-3">
+                  <div className="inline-flex items-center justify-center p-3 bg-gray-50 dark:bg-gray-900 rounded-full text-gray-400">
+                    <BookOpen className="size-8" />
+                  </div>
+                  <div className="max-w-md mx-auto space-y-1">
+                    <h4 className="text-sm font-semibold text-gray-800 dark:text-white">Belum Ada Riwayat</h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Anda belum menyelesaikan simulasi siklus aset apa pun. Silakan selesaikan 6 tahap simulasi di atas hingga berhasil membuat Jurnal Penyesuaian Akhir Tahun untuk menyimpan riwayat baru secara otomatis.
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {historyList.map((item) => (
+                  <div 
+                    key={item.id} 
+                    className="border border-gray-100 dark:border-gray-800 rounded-xl p-5 bg-gray-50/30 dark:bg-gray-900/10 space-y-4 hover:shadow-theme-xs transition-all flex flex-col justify-between"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-bold text-gray-800 dark:text-white text-sm">
+                          {item.namaAset}
+                        </h4>
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                          {new Date(item.timestamp).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric"
+                          })}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span>Perolehan:</span>
+                        <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
+                          {formatRupiah(item.totalPerolehan)}
+                        </span>
+
+                        <span>Golongan Pajak:</span>
+                        <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
+                          {GOLONGAN_RULES[item.selectedGolongan as GolonganKey]?.name.split(" ")[0] || item.selectedGolongan}
+                        </span>
+
+                        <span>SAK Depr. (Thn 1):</span>
+                        <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
+                          {formatRupiah(item.bebanSAKThn1)}
+                        </span>
+
+                        <span>Pajak Depr. (Thn 1):</span>
+                        <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
+                          {formatRupiah(item.bebanPajakThn1)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-gray-800/80 text-xs">
+                      <button
+                        onClick={() => setSelectedHistoryView(item)}
+                        className="flex-1 py-1.5 bg-brand-50 dark:bg-brand-950/20 text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-950/40 rounded-lg font-semibold transition cursor-pointer text-center"
+                      >
+                        Buka
+                      </button>
+                      <button
+                        onClick={() => downloadSimulationPDF(item)}
+                        className="flex-1 py-1.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 rounded-lg font-semibold transition cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        <Download className="size-3" />
+                        PDF
+                      </button>
+                      <button
+                        onClick={() => handleDeleteHistory(item.id)}
+                        className="p-1.5 border border-red-100 dark:border-red-950/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/10 rounded-lg transition cursor-pointer"
+                        title="Hapus Riwayat"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          } else {
+            return (
+              <div className="text-center py-10 px-4 space-y-4 max-w-sm mx-auto">
+                <div className="inline-flex items-center justify-center p-3 bg-amber-50 dark:bg-amber-950/20 text-amber-500 rounded-full">
+                  <Award className="size-8" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-semibold text-gray-800 dark:text-white">Riwayat Terkunci</h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Silakan masuk/daftar akun terlebih dahulu untuk merekam, melihat riwayat simulasi, dan mengunduh laporan PDF resmi.
+                  </p>
+                </div>
+                <a
+                  href="/signin"
+                  className="inline-block px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-semibold shadow transition"
+                >
+                  Masuk Sekarang
+                </a>
+              </div>
+            );
+          }
+        })()}
+      </div>
+
+      {/* RIWAYAT SIMULASI DETAIL VIEW MODAL */}
+      {selectedHistoryView && (
+        <div className="fixed inset-0 z-99999 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl space-y-6">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-800 pb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-800 dark:text-white font-heading">
+                  Detail Laporan: {selectedHistoryView.namaAset}
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Riwayat simulasi diselesaikan pada {new Date(selectedHistoryView.timestamp).toLocaleString("id-ID")}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedHistoryView(null)}
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-400 hover:text-gray-600 transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="space-y-6 text-sm text-gray-700 dark:text-gray-300">
+              
+              {/* 1. Rincian Aset */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800/80 space-y-2">
+                  <h4 className="font-bold text-brand-500 text-xs uppercase tracking-wider">
+                    Informasi & Biaya Perolehan
+                  </h4>
+                  <div className="grid grid-cols-2 gap-y-1 text-xs">
+                    <span>Nama Aset:</span>
+                    <span className="font-semibold text-right">{selectedHistoryView.namaAset}</span>
+                    <span>Tanggal Perolehan:</span>
+                    <span className="font-semibold text-right">{selectedHistoryView.tanggalBeli}</span>
+                    <span>Harga Beli:</span>
+                    <span className="font-semibold text-right">{formatRupiah(selectedHistoryView.hargaBeli)}</span>
+                    <span>Biaya Kirim:</span>
+                    <span className="font-semibold text-right">{formatRupiah(selectedHistoryView.biayaKirim)}</span>
+                    <span>Biaya BBN / Instalasi:</span>
+                    <span className="font-semibold text-right">{formatRupiah(selectedHistoryView.biayaBbn)}</span>
+                    <span className="font-bold text-gray-800 dark:text-white mt-1">Total Perolehan:</span>
+                    <span className="font-bold text-right text-brand-500 mt-1">{formatRupiah(selectedHistoryView.totalPerolehan)}</span>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800/80 space-y-2">
+                  <h4 className="font-bold text-brand-500 text-xs uppercase tracking-wider">
+                    Kebijakan Depresiasi (SAK vs Pajak)
+                  </h4>
+                  <div className="grid grid-cols-2 gap-y-1 text-xs">
+                    <span>Metode Akuntansi (SAK):</span>
+                    <span className="font-semibold text-right">{selectedHistoryView.metodeSAK === "GL" ? "Garis Lurus" : "Saldo Menurun"}</span>
+                    <span>Masa Manfaat (SAK):</span>
+                    <span className="font-semibold text-right">{selectedHistoryView.masaManfaatSAK} Tahun</span>
+                    <span>Nilai Residu (SAK):</span>
+                    <span className="font-semibold text-right">{formatRupiah(selectedHistoryView.nilaiResiduSAK)}</span>
+                    <span>Golongan Pajak:</span>
+                    <span className="font-semibold text-right">{GOLONGAN_RULES[selectedHistoryView.selectedGolongan as GolonganKey]?.name || selectedHistoryView.selectedGolongan}</span>
+                    <span>Masa Manfaat Pajak:</span>
+                    <span className="font-semibold text-right">{GOLONGAN_RULES[selectedHistoryView.selectedGolongan as GolonganKey]?.years || 8} Tahun</span>
+                    <span>Metode Pajak:</span>
+                    <span className="font-semibold text-right">{selectedHistoryView.metodePajak === "GL" ? "Garis Lurus" : "Saldo Menurun"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Jurnal Penyesuaian */}
+              <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800/80 space-y-3">
+                <h4 className="font-bold text-brand-500 text-xs uppercase tracking-wider">
+                  Jurnal Penyesuaian Akhir Tahun Ke-1
+                </h4>
+                <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden text-xs">
+                  <table className="w-full text-left">
+                    <thead className="bg-gray-100 dark:bg-gray-800 font-semibold text-gray-700 dark:text-gray-300">
+                      <tr>
+                        <th className="p-2 pl-4">Akun</th>
+                        <th className="p-2 text-center">Ref</th>
+                        <th className="p-2 text-right pr-4">Debit</th>
+                        <th className="p-2 text-right pr-4">Kredit</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-medium">
+                      <tr>
+                        <td className="p-2 pl-4 text-gray-800 dark:text-white">Beban Penyusutan Aset Tetap</td>
+                        <td className="p-2 text-center text-gray-500">5-101</td>
+                        <td className="p-2 text-right pr-4 text-gray-800 dark:text-white">{formatRupiah(selectedHistoryView.bebanSAKThn1)}</td>
+                        <td className="p-2 text-right pr-4 text-gray-400">-</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 pl-8 text-gray-800 dark:text-white">Akumulasi Penyusutan Aset Tetap</td>
+                        <td className="p-2 text-center text-gray-500">1-201</td>
+                        <td className="p-2 text-right pr-4 text-gray-400">-</td>
+                        <td className="p-2 text-right pr-4 text-gray-800 dark:text-white">{formatRupiah(selectedHistoryView.bebanSAKThn1)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 3. Recharts Chart of Book Value */}
+              {selectedHistoryView.chartData && selectedHistoryView.chartData.length > 0 && (
+                <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800/80 space-y-3">
+                  <h4 className="font-bold text-brand-500 text-xs uppercase tracking-wider">
+                    Grafik Penurunan Nilai Buku
+                  </h4>
+                  <div className="w-full h-[220px] text-[10px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={selectedHistoryView.chartData}>
+                        <XAxis dataKey="year" stroke="#9ca3af" />
+                        <YAxis 
+                          stroke="#9ca3af" 
+                          tickFormatter={(value) => `Rp ${(value / 1000000).toFixed(0)}jt`}
+                        />
+                        <Tooltip 
+                          formatter={(value: any) => formatRupiah(Number(value))}
+                          contentStyle={{ backgroundColor: "#1f2937", border: "none", borderRadius: "8px", color: "#fff" }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="SAK Nilai Buku" 
+                          stroke="#465fff" 
+                          strokeWidth={2}
+                          activeDot={{ r: 6 }} 
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="Pajak Nilai Buku" 
+                          stroke="#10b981" 
+                          strokeWidth={2}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Comparative Schedule Table */}
+              {selectedHistoryView.tabelSAK && selectedHistoryView.tabelSAK.length > 0 && (
+                <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800/80 space-y-3">
+                  <h4 className="font-bold text-brand-500 text-xs uppercase tracking-wider">
+                    Jadwal Penyusutan Komparatif (Tahun ke-1 s/d selesai)
+                  </h4>
+                  <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-x-auto text-[11px]">
+                    <table className="w-full text-left">
+                      <thead className="bg-gray-100 dark:bg-gray-800 font-semibold text-gray-700 dark:text-gray-300">
+                        <tr>
+                          <th className="p-2 text-center">Tahun</th>
+                          <th className="p-2 text-right">Beban Akuntansi (SAK)</th>
+                          <th className="p-2 text-right">Nilai Buku SAK</th>
+                          <th className="p-2 text-right">Beban Pajak (Fiskal)</th>
+                          <th className="p-2 text-right pr-4">Nilai Buku Pajak</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                        {Array.from({ length: Math.max(selectedHistoryView.tabelSAK.length, selectedHistoryView.tabelPajak?.length || 0) }).map((_, idx) => {
+                          const sakRowObj = selectedHistoryView.tabelSAK?.[idx];
+                          const pajakRowObj = selectedHistoryView.tabelPajak?.[idx];
+                          return (
+                            <tr key={idx} className="hover:bg-gray-100/50 dark:hover:bg-gray-800/20 font-medium">
+                              <td className="p-2 text-center text-gray-500">Tahun {idx + 1}</td>
+                              <td className="p-2 text-right text-gray-800 dark:text-gray-300">{sakRowObj ? formatRupiah(sakRowObj.beban) : "-"}</td>
+                              <td className="p-2 text-right text-brand-600 dark:text-brand-400 font-semibold">{sakRowObj ? formatRupiah(sakRowObj.nilaiBuku) : "-"}</td>
+                              <td className="p-2 text-right text-gray-800 dark:text-gray-300">{pajakRowObj ? formatRupiah(pajakRowObj.beban) : "-"}</td>
+                              <td className="p-2 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-semibold">{pajakRowObj ? formatRupiah(pajakRowObj.nilaiBuku) : "-"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex flex-col sm:flex-row gap-3 justify-between items-center border-t border-gray-100 dark:border-gray-800 pt-4 text-xs">
+              <button
+                onClick={() => handleLoadHistory(selectedHistoryView)}
+                className="w-full sm:w-auto px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-lg transition cursor-pointer"
+              >
+                Gunakan Parameter di Simulator
+              </button>
+              <div className="flex gap-2 w-full sm:w-auto justify-end">
+                <button
+                  onClick={() => setSelectedHistoryView(null)}
+                  className="px-4 py-2 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold rounded-lg transition cursor-pointer"
+                >
+                  Tutup
+                </button>
+                <button
+                  onClick={() => downloadSimulationPDF(selectedHistoryView)}
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="size-4" />
+                  Unduh PDF
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
