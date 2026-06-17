@@ -2,7 +2,7 @@ import React from "react";
 import { useSidebar } from "../context/SidebarContext";
 import { useTheme } from "../context/ThemeContext";
 import { useLocation, Link } from "react-router-dom";
-import { Sun, Moon, User } from "lucide-react";
+import { Sun, Moon, User, LogOut } from "lucide-react";
 
 const AppHeader: React.FC = () => {
   const { toggleSidebar, toggleMobileSidebar } = useSidebar();
@@ -99,9 +99,21 @@ const AppHeader: React.FC = () => {
                 {user.role}
               </p>
             </div>
-            <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[#3B919B]/10 dark:bg-[#68AEB8]/10 text-[#3B919B] dark:text-[#68AEB8] font-bold text-xs border border-[#3B919B]/30">
+            <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[#3B919B]/10 dark:bg-[#68AEB8]/10 text-[#3B919B] dark:text-[#68AEB8] font-bold text-xs border border-[#3B919B]/30 mr-1">
               {user.full_name.charAt(0).toUpperCase()}
             </div>
+            <button
+              onClick={() => {
+                if (window.confirm("Apakah Anda yakin ingin keluar?")) {
+                  localStorage.removeItem("clickaset_user");
+                  window.location.href = "/";
+                }
+              }}
+              className="p-2 border border-stroke dark:border-stroke-dark rounded-full hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 hover:text-red-600 transition duration-200 cursor-pointer"
+              title="Logout / Keluar"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         ) : (
           <div className="flex items-center gap-2 pl-3 border-l border-stroke dark:border-stroke-dark">

@@ -841,12 +841,20 @@ Aturan Kunci Penyusutan Pajak:
           {categories.map((cat) => (
             <button
               key={cat.key}
-              onClick={() => setActiveCategory(cat.key)}
+              onClick={() => {
+                if (!user && cat.key !== "DEFINISI") {
+                  window.dispatchEvent(new CustomEvent("show-auth-modal", {
+                    detail: { message: `Ingin mempelajari materi "${cat.label}"? Yuk, login terlebih dahulu!` }
+                  }));
+                  return;
+                }
+                setActiveCategory(cat.key);
+              }}
               className={`px-4 py-3 rounded-lg font-semibold text-sm text-left whitespace-nowrap lg:whitespace-normal transition-all border cursor-pointer flex-1 lg:flex-none
                 ${
                   activeCategory === cat.key
                     ? "bg-brand-500 border-brand-500 text-white shadow-sm"
-                    : "bg-white border-gray-200 hover:bg-gray-50 dark:bg-gray-950 dark:border-gray-800 dark:hover:bg-gray-900 text-gray-800 dark:text-gray-400"
+                    : "bg-white border-gray-200 hover:bg-gray-50 dark:bg-gray-955 dark:border-gray-800 dark:hover:bg-gray-900 text-gray-800 dark:text-gray-400"
                 }`}
             >
               {cat.label}

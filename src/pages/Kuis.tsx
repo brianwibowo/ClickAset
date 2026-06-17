@@ -384,6 +384,13 @@ const Kuis: React.FC = () => {
     e.preventDefault();
     if (!roomCodeInput) return;
 
+    if (!user) {
+      window.dispatchEvent(new CustomEvent("show-auth-modal", {
+        detail: { message: "Ingin bergabung ke kuis interaktif bersama teman-teman? Yuk, login terlebih dahulu!" }
+      }));
+      return;
+    }
+
     const nickname = user ? user.username : studentGuestName;
     if (!nickname) {
       alert("Silakan masukkan nama panggilan terlebih dahulu!");

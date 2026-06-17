@@ -1322,6 +1322,13 @@ const Simulasi: React.FC = () => {
 
             <button
               onClick={() => {
+                const userJson = localStorage.getItem("clickaset_user");
+                if (!userJson) {
+                  window.dispatchEvent(new CustomEvent("show-auth-modal", {
+                    detail: { message: "Ingin melanjutkan simulasi siklus aset ke tahap berikutnya? Yuk, login terlebih dahulu!" }
+                  }));
+                  return;
+                }
                 if (step === 1) {
                   // Ensure name and purchase price is positive
                   if (namaAset && hargaBeli > 0) setStep(2);
