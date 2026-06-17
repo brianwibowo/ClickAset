@@ -150,6 +150,9 @@ const Kuis: React.FC = () => {
   const [myRoom, setMyRoom] = useState<Room | null>(null);
   const [roomCodeInput, setRoomCodeInput] = useState("");
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [myParticipantId, setMyParticipantId] = useState<string>("");
+  const [studentAnswers, setStudentAnswers] = useState<{ [questionId: string]: number | null }>({});
+  const [correctAnswersCount, setCorrectAnswersCount] = useState<number>(0);
   
   // Student Quiz playing states
   const [quizState, setQuizState] = useState<{
@@ -224,6 +227,14 @@ const Kuis: React.FC = () => {
           if (prev.timeLeft <= 1) {
             if (timerRef.current) clearInterval(timerRef.current);
             // Handle timeout
+            const activeRoomQuests = myRoom ? questions.filter(q => q.quiz_id === myRoom.quiz_id) : [];
+            const activeQuest = activeRoomQuests[prev.currentIndex];
+            if (activeQuest) {
+              setStudentAnswers(sa => ({
+                ...sa,
+                [activeQuest.id]: null
+              }));
+            }
             return {
               ...prev,
               timeLeft: 0,
@@ -442,13 +453,6 @@ const Kuis: React.FC = () => {
     e.preventDefault();
     if (!roomCodeInput) return;
 
-    if (!user) {
-      window.dispatchEvent(new CustomEvent("show-auth-modal", {
-        detail: { message: "Ingin bergabung ke kuis interaktif bersama teman-teman? Yuk, login terlebih dahulu!" }
-      }));
-      return;
-    }
-
     const nickname = user ? user.username : studentGuestName;
     if (!nickname) {
       alert("Silakan masukkan nama panggilan terlebih dahulu!");
@@ -480,14 +484,29 @@ const Kuis: React.FC = () => {
       };
 
       await supabase.from("participants").insert(newParticipant);
+
+      // Fetch the inserted participant ID for unique tracking
+      const { data: searchPart } = await supabase.from("participants")
+        .select("*")
+        .eq("room_id", dbRoom.id)
+        .eq("username", nickname)
+        .order("created_at", { ascending: false });
+
+      const joinedPart = searchPart && searchPart.length > 0 ? searchPart[0] : null;
+      if (joinedPart) {
+        setMyParticipantId(joinedPart.id);
+      }
+
       setMyRoom(dbRoom);
+      setStudentAnswers({});
+      setCorrectAnswersCount(0);
       setQuizState({
         status: "LOBBY",
         currentIndex: 0,
         score: 0,
         selectedOption: null,
         answered: false,
-        timeLeft: 30,
+        timeLeft: 35, // default buffer
         showExplanation: false,
         earnedPoints: 0
       });
@@ -525,24 +544,31 @@ const Kuis: React.FC = () => {
       score: newScore
     }));
 
+    const activeRoomQuests = myRoom ? questions.filter(q => q.quiz_id === myRoom.quiz_id) : [];
+    const activeQuest = activeRoomQuests[quizState.currentIndex];
+    if (activeQuest) {
+      setStudentAnswers(prev => ({
+        ...prev,
+        [activeQuest.id]: selectedIdx
+      }));
+      if (isCorrect) {
+        setCorrectAnswersCount(prev => prev + 1);
+      }
+    }
+
     if (timerRef.current) clearInterval(timerRef.current);
 
-    // Update participant score in DB/localStorage
-    const nickname = user ? user.username : studentGuestName;
-    if (myRoom) {
-      const { data: myPart } = await supabase.from("participants")
-        .select("*")
-        .eq("room_id", myRoom.id)
-        .eq("username", nickname)
-        .single();
-
-      if (myPart) {
+    // Update participant score in DB/localStorage using unique participant ID
+    if (myParticipantId) {
+      try {
         await supabase.from("participants")
           .update({ 
             score: newScore,
             current_question_index: quizState.currentIndex + 1 
           })
-          .eq("id", myPart.id);
+          .eq("id", myParticipantId);
+      } catch (err) {
+        console.error("Gagal memperbarui skor kuis:", err);
       }
     }
   };
@@ -572,6 +598,9 @@ const Kuis: React.FC = () => {
 
   const handleLeaveRoom = () => {
     setMyRoom(null);
+    setMyParticipantId("");
+    setStudentAnswers({});
+    setCorrectAnswersCount(0);
     setQuizState({
       status: "LOBBY",
       currentIndex: 0,
@@ -743,97 +772,191 @@ const Kuis: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Add Question Inline Form */}
+                {/* Add Question Form with Live Preview Layout */}
                 {showAddQuestion && (
-                  <form onSubmit={handleAddQuestion} className="space-y-3 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800 animate-fadeIn">
-                    <div>
-                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">Butir Pertanyaan</label>
-                      <textarea
-                        required
-                        value={newQText}
-                        onChange={(e) => setNewQText(e.target.value)}
-                        placeholder="Masukkan pertanyaan kuis..."
-                        rows={2}
-                        className="w-full px-2.5 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white"
-                      />
-                    </div>
-
-                    {/* Option arrays */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {newQOpts.map((opt, oIdx) => (
-                        <div key={oIdx}>
-                          <label className="block text-[9px] text-gray-400 uppercase mb-0.5">Opsi {String.fromCharCode(65 + oIdx)}</label>
-                          <input
-                            type="text"
-                            required
-                            value={opt}
-                            onChange={(e) => {
-                              const newArr = [...newQOpts];
-                              newArr[oIdx] = e.target.value;
-                              setNewQOpts(newArr);
-                            }}
-                            placeholder={`Ketik pilihan jawaban ${String.fromCharCode(65 + oIdx)}`}
-                            className="w-full px-2.5 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white"
-                          />
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Correct index & timer */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800 animate-fadeIn">
+                    <form onSubmit={handleAddQuestion} className="xl:col-span-2 space-y-4">
                       <div>
-                        <label className="block text-[9px] text-gray-400 uppercase mb-1">Pilihan Kunci Benar</label>
-                        <select
-                          value={newQCorrect}
-                          onChange={(e) => setNewQCorrect(Number(e.target.value))}
-                          className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white"
-                        >
-                          <option value={0}>Opsi A</option>
-                          <option value={1}>Opsi B</option>
-                          <option value={2}>Opsi C</option>
-                          <option value={3}>Opsi D</option>
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-[9px] text-gray-400 uppercase mb-1">Timer (Detik)</label>
-                        <input
-                          type="number"
-                          value={newQTimer}
-                          min={5}
-                          onChange={(e) => setNewQTimer(Math.max(5, Number(e.target.value)))}
-                          className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white font-mono"
+                        <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">Butir Pertanyaan</label>
+                        <textarea
+                          required
+                          value={newQText}
+                          onChange={(e) => setNewQText(e.target.value)}
+                          placeholder="Masukkan pertanyaan kuis..."
+                          rows={2.5}
+                          className="w-full px-2.5 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white focus:border-brand-500"
                         />
                       </div>
-                    </div>
 
-                    <div>
-                      <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">Pembahasan Pembelajaran (Edukasi)</label>
-                      <textarea
-                        value={newQExpl}
-                        onChange={(e) => setNewQExpl(e.target.value)}
-                        placeholder="Ketik penjelasan jawaban yang benar..."
-                        rows={2}
-                        className="w-full px-2.5 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white"
-                      />
-                    </div>
+                      {/* Option arrays */}
+                      <div className="grid grid-cols-1 gap-2.5">
+                        <label className="block text-[10px] text-gray-400 font-bold uppercase -mb-1">
+                          Pilihan Jawaban & Tentukan Kunci Jawaban
+                        </label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {newQOpts.map((opt, oIdx) => {
+                            const isCorrect = newQCorrect === oIdx;
+                            const labelChar = String.fromCharCode(65 + oIdx);
+                            return (
+                              <div key={oIdx} className="space-y-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                    oIdx === 0 ? "bg-red-50 text-red-600 dark:bg-red-950/20 dark:text-red-400" :
+                                    oIdx === 1 ? "bg-blue-50 text-blue-600 dark:bg-blue-950/20 dark:text-blue-400" :
+                                    oIdx === 2 ? "bg-amber-50 text-amber-600 dark:bg-amber-950/20 dark:text-amber-400" :
+                                    "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400"
+                                  }`}>
+                                    Opsi {labelChar}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setNewQCorrect(oIdx)}
+                                    className={`ml-auto flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-semibold transition ${
+                                      isCorrect 
+                                        ? "bg-emerald-600 text-white" 
+                                        : "bg-gray-100 hover:bg-gray-200 text-gray-500 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-400"
+                                    }`}
+                                  >
+                                    {isCorrect ? (
+                                      <>
+                                        <Check className="size-3 stroke-[3px]" /> Kunci Benar
+                                      </>
+                                    ) : (
+                                      "Set Kunci"
+                                    )}
+                                  </button>
+                                </div>
+                                <input
+                                  type="text"
+                                  required
+                                  value={opt}
+                                  onChange={(e) => {
+                                    const newArr = [...newQOpts];
+                                    newArr[oIdx] = e.target.value;
+                                    setNewQOpts(newArr);
+                                  }}
+                                  placeholder={`Ketik pilihan jawaban ${labelChar}`}
+                                  className={`w-full px-2.5 py-1.5 border rounded text-xs text-gray-800 dark:text-white bg-white dark:bg-gray-800 transition ${
+                                    isCorrect 
+                                      ? "border-emerald-500 ring-1 ring-emerald-500/30" 
+                                      : "border-gray-200 dark:border-gray-700 focus:border-brand-500"
+                                  }`}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
 
-                    <div className="flex justify-end gap-2 text-[10px]">
-                      <button
-                        type="button"
-                        onClick={() => setShowAddQuestion(false)}
-                        className="px-3 py-1.5 border border-gray-200 rounded text-gray-500 hover:bg-gray-100"
-                      >
-                        Batal
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-3 py-1.5 bg-brand-500 text-white rounded hover:bg-brand-600 font-semibold shadow"
-                      >
-                        Simpan Pertanyaan
-                      </button>
+                      {/* Timer settings */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">Durasi Timer Soal</label>
+                          <select
+                            value={newQTimer}
+                            onChange={(e) => setNewQTimer(Number(e.target.value))}
+                            className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white"
+                          >
+                            <option value={10}>10 Detik (Sangat Cepat)</option>
+                            <option value={20}>20 Detik (Cepat)</option>
+                            <option value={30}>30 Detik (Standar)</option>
+                            <option value={45}>45 Detik (Sedang)</option>
+                            <option value={60}>60 Detik (1 Menit)</option>
+                            <option value={90}>90 Detik (1.5 Menit)</option>
+                            <option value={120}>120 Detik (2 Menit - Analitis)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">Pembahasan Pembelajaran (Edukasi)</label>
+                        <textarea
+                          value={newQExpl}
+                          onChange={(e) => setNewQExpl(e.target.value)}
+                          placeholder="Ketik penjelasan jawaban yang benar..."
+                          rows={2.5}
+                          className="w-full px-2.5 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white focus:border-brand-500"
+                        />
+                      </div>
+
+                      <div className="flex justify-end gap-2 text-[10px] pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowAddQuestion(false)}
+                          className="px-3 py-1.5 border border-gray-200 rounded text-gray-500 hover:bg-gray-100"
+                        >
+                          Batal
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-3 py-1.5 bg-brand-500 text-white rounded hover:bg-brand-600 font-semibold shadow"
+                        >
+                          Simpan Pertanyaan
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* Live Preview Column */}
+                    <div className="flex flex-col space-y-3">
+                      <label className="block text-[10px] text-gray-400 font-bold uppercase">
+                        Pratinjau Soal (Layar Siswa)
+                      </label>
+                      
+                      <div className="border border-dashed border-gray-200 dark:border-gray-800 rounded-xl p-4 bg-white dark:bg-gray-950 flex flex-col justify-between h-full min-h-[260px] shadow-sm">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b pb-2 border-gray-100 dark:border-gray-800">
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">
+                              🔴 Live Student Preview
+                            </span>
+                            <span className="text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded font-mono font-semibold">
+                              Soal {questions.filter(q => q.quiz_id === activeQuizForQuestions.id).length + 1}
+                            </span>
+                          </div>
+                          
+                          <h4 className="font-bold text-xs text-gray-900 dark:text-white leading-relaxed line-clamp-4">
+                            {newQText || "Ketik pertanyaan Anda di panel sebelah kiri untuk melihat pratinjau..."}
+                          </h4>
+
+                          {/* Options Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[10px]">
+                            {newQOpts.map((opt, oIdx) => {
+                              const isCorrect = (newQCorrect === oIdx);
+                              const geom = oIdx === 0 ? "▲" : oIdx === 1 ? "◆" : oIdx === 2 ? "●" : "■";
+                              const theme = oIdx === 0
+                                ? "border-red-200 bg-red-50/20 text-red-800 dark:border-red-900/40 dark:bg-red-950/5 dark:text-red-400"
+                                : oIdx === 1
+                                ? "border-blue-200 bg-blue-50/20 text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/5 dark:text-blue-400"
+                                : oIdx === 2
+                                ? "border-amber-200 bg-amber-50/20 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/5 dark:text-amber-400"
+                                : "border-emerald-200 bg-emerald-50/20 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/5 dark:text-emerald-400";
+                              
+                              return (
+                                <div
+                                  key={oIdx}
+                                  className={`p-2 rounded-lg border text-left flex items-start gap-1.5 font-medium transition-all ${theme} ${
+                                    isCorrect ? "ring-2 ring-emerald-500 shadow-sm" : ""
+                                  }`}
+                                >
+                                  <span className="opacity-70 font-semibold">{geom}</span>
+                                  <span className="truncate">{opt || `Pilihan ${String.fromCharCode(65 + oIdx)}...`}</span>
+                                  {isCorrect && <Check className="size-3 text-emerald-600 dark:text-emerald-400 ml-auto shrink-0" />}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[9px] text-gray-400 pt-2 border-t border-gray-150 dark:border-gray-800 mt-3 font-mono">
+                          <span className="flex items-center gap-1 font-bold">⏱️ Batas Waktu: {newQTimer}s</span>
+                          {newQExpl && (
+                            <span className="truncate max-w-[120px] text-slate-400 italic" title={newQExpl}>
+                              💡 Pembahasan terisi
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </form>
+                  </div>
                 )}
 
                 {/* List questions of active quiz */}
@@ -1156,29 +1279,51 @@ const Kuis: React.FC = () => {
                   const isSelected = (quizState.selectedOption === oIdx);
                   const showAnswer = quizState.answered;
 
-                  let btnClass = "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 bg-gray-50/50 dark:bg-gray-900/40 text-gray-800 dark:text-gray-300";
-
-                  if (showAnswer) {
-                    if (isCorrect) {
-                      btnClass = "border-success-500 bg-success-50/50 text-success-800 dark:bg-success-950/20 dark:text-success-400 font-semibold";
-                    } else if (isSelected) {
-                      btnClass = "border-red-500 bg-red-50/50 text-red-800 dark:bg-red-950/20 dark:text-red-400";
+                  let btnClass = "";
+                  
+                  if (!showAnswer) {
+                    // Gamified default states based on option index
+                    if (oIdx === 0) {
+                      btnClass = "border-red-200 dark:border-red-900/50 bg-red-50/20 text-red-900 dark:text-red-300 hover:border-red-400 hover:bg-red-50/40 hover:shadow-red-500/10 hover:shadow-md dark:bg-red-950/10 dark:hover:bg-red-950/20";
+                    } else if (oIdx === 1) {
+                      btnClass = "border-blue-200 dark:border-blue-900/50 bg-blue-50/20 text-blue-900 dark:text-blue-300 hover:border-blue-400 hover:bg-blue-50/40 hover:shadow-blue-500/10 hover:shadow-md dark:bg-blue-950/10 dark:hover:bg-blue-950/20";
+                    } else if (oIdx === 2) {
+                      btnClass = "border-amber-200 dark:border-amber-900/50 bg-amber-50/20 text-amber-900 dark:text-amber-300 hover:border-amber-400 hover:bg-amber-50/40 hover:shadow-amber-500/10 hover:shadow-md dark:bg-amber-950/10 dark:hover:bg-amber-950/20";
                     } else {
-                      btnClass = "border-gray-100 dark:border-gray-900 opacity-50 bg-gray-50/10 text-gray-400";
+                      btnClass = "border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/20 text-emerald-900 dark:text-emerald-300 hover:border-emerald-400 hover:bg-emerald-50/40 hover:shadow-emerald-500/10 hover:shadow-md dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20";
+                    }
+                  } else {
+                    // Answer revealed state
+                    if (isCorrect) {
+                      btnClass = "border-success-500 bg-success-50/50 text-success-800 dark:bg-success-950/20 dark:text-success-400 font-bold ring-2 ring-success-500/40 shadow-lg scale-[1.02]";
+                    } else if (isSelected) {
+                      btnClass = "border-red-500 bg-red-50/50 text-red-800 dark:bg-red-950/20 dark:text-red-400 ring-2 ring-red-500/30 shadow-md";
+                    } else {
+                      btnClass = "border-gray-100 dark:border-gray-900 opacity-40 bg-gray-50/5 text-gray-400";
                     }
                   }
+
+                  const geometricSymbol = oIdx === 0 ? "▲" : oIdx === 1 ? "◆" : oIdx === 2 ? "●" : "■";
+                  const badgeColor = oIdx === 0
+                    ? "bg-red-500 text-white"
+                    : oIdx === 1
+                    ? "bg-blue-500 text-white"
+                    : oIdx === 2
+                    ? "bg-amber-500 text-white"
+                    : "bg-emerald-500 text-white";
 
                   return (
                     <button
                       key={oIdx}
                       disabled={quizState.answered}
                       onClick={() => handleSubmitAnswer(oIdx, activeRoomQuestions[quizState.currentIndex].correct_option_index, activeRoomQuestions[quizState.currentIndex].time_limit)}
-                      className={`text-left p-4 rounded-xl border transition-all text-xs md:text-sm flex items-start gap-3 cursor-pointer hover:scale-[1.01] ${btnClass}`}
+                      className={`text-left p-4 rounded-xl border transition-all text-xs md:text-sm flex items-center gap-3 cursor-pointer hover:scale-[1.015] duration-200 ${btnClass}`}
                     >
-                      <span className="font-bold rounded-full size-5 bg-white/10 flex items-center justify-center border border-current shrink-0">
+                      <span className={`font-bold rounded-lg size-6 flex items-center justify-center font-heading text-xs shrink-0 shadow-sm ${badgeColor}`}>
                         {String.fromCharCode(65 + oIdx)}
                       </span>
-                      <span>{opt}</span>
+                      <span className="font-bold opacity-60 text-xs md:text-sm select-none">{geometricSymbol}</span>
+                      <span className="flex-1 font-semibold">{opt}</span>
                     </button>
                   );
                 })}
@@ -1236,7 +1381,7 @@ const Kuis: React.FC = () => {
       {/* CASE F: STUDENTS FINISHED GAME (WAITING / FINAL SCORE) */}
       {/* ---------------------------------------------------- */}
       {!isGuru && myRoom && quizState.status === "FINISHED" && (
-        <div className="max-w-md mx-auto bg-white border border-gray-200 dark:border-gray-800 dark:bg-gray-950 rounded-2xl p-6 shadow-theme-md space-y-6 text-center">
+        <div className="max-w-2xl mx-auto bg-white border border-gray-200 dark:border-gray-800 dark:bg-gray-950 rounded-2xl p-6 shadow-theme-md space-y-6 text-center">
           <div className="inline-flex items-center justify-center p-3.5 bg-brand-50 dark:bg-brand-500/10 rounded-full text-brand-500 mb-2">
             <Award className="size-9 animate-bounce" />
           </div>
@@ -1248,25 +1393,57 @@ const Kuis: React.FC = () => {
             </p>
           </div>
 
-          {/* Student Final score */}
-          <div className="bg-brand-50/50 dark:bg-brand-950/10 border border-brand-100 dark:border-brand-900 rounded-xl p-4">
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Skor Akhir Anda</span>
-            <span className="text-3xl font-mono font-bold text-brand-600 dark:text-brand-400">
-              {quizState.score} pt
-            </span>
+          {/* Performance Feedback Banner */}
+          {(() => {
+            const totalQ = activeRoomQuestions.length || 1;
+            const accuracy = Math.round((correctAnswersCount / totalQ) * 100);
+            
+            let feedbackText = "📚 Tetap Semangat! Baca kembali modul Penyesuaian Aset Tetap.";
+            let feedbackClass = "bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-400";
+            
+            if (accuracy >= 80) {
+              feedbackText = "🏆 Hebat! Pemahaman SAK & Pajak Anda sangat kuat.";
+              feedbackClass = "bg-emerald-50 border-emerald-100 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900 dark:text-emerald-400";
+            } else if (accuracy >= 50) {
+              feedbackText = "✨ Bagus! Pelajari materi lagi untuk meraih skor sempurna.";
+              feedbackClass = "bg-amber-50 border-amber-100 text-amber-800 dark:bg-amber-950/20 dark:border-amber-900 dark:text-amber-400";
+            }
+            
+            return (
+              <div className={`p-3.5 rounded-xl border text-xs font-semibold ${feedbackClass}`}>
+                {feedbackText}
+              </div>
+            );
+          })()}
+
+          {/* Final stats grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-brand-50/40 dark:bg-brand-950/10 border border-brand-100 dark:border-brand-900 rounded-xl p-4">
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Skor Akhir Anda</span>
+              <span className="text-2xl font-mono font-bold text-brand-600 dark:text-brand-400">
+                {quizState.score} pt
+              </span>
+            </div>
+            
+            <div className="bg-emerald-50/20 dark:bg-emerald-950/10 border border-emerald-100/50 dark:border-emerald-900/30 rounded-xl p-4">
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Akurasi Jawaban</span>
+              <span className="text-2xl font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                {correctAnswersCount} / {activeRoomQuestions.length} ({Math.round((correctAnswersCount / (activeRoomQuestions.length || 1)) * 100)}%)
+              </span>
+            </div>
           </div>
 
           {/* List final leaderboard rankings */}
-          <div className="space-y-2.5 text-left">
+          <div className="space-y-2.5 text-left bg-gray-50/50 dark:bg-slate-900/20 p-4 border border-gray-150 dark:border-gray-850 rounded-xl">
             <span className="text-xs font-bold text-gray-700 dark:text-gray-300 block border-b pb-1">Leaderboard Room:</span>
             <div className="space-y-1.5 max-h-[180px] overflow-y-auto custom-scrollbar">
               {participants.map((p, idx) => (
                 <div 
                   key={p.id}
-                  className={`flex items-center justify-between p-2.5 border rounded-lg text-xs ${
+                  className={`flex items-center justify-between p-2 border rounded-lg text-xs ${
                     p.username === (user ? user.username : studentGuestName)
                       ? "border-brand-300 bg-brand-50/20 dark:bg-brand-500/5 dark:border-brand-500 font-bold"
-                      : "border-gray-150 dark:border-gray-850"
+                      : "border-gray-150 dark:border-gray-850 bg-white dark:bg-gray-950"
                   }`}
                 >
                   <span className="text-gray-850 dark:text-gray-300">
@@ -1275,6 +1452,100 @@ const Kuis: React.FC = () => {
                   <span className="font-mono text-brand-600 dark:text-brand-400 font-semibold">{p.score} pt</span>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Review Board */}
+          <div className="space-y-3 text-left pt-4 border-t border-gray-100 dark:border-gray-800">
+            <h4 className="font-bold text-sm text-gray-800 dark:text-white flex items-center gap-1.5">
+              <ListOrdered className="size-4.5 text-brand-500" />
+              Tinjauan Pertanyaan & Pembahasan
+            </h4>
+            <p className="text-[11px] text-gray-400">
+              Pelajari kembali soal-soal di bawah ini untuk memperdalam pemahaman SAK dan Pajak Anda.
+            </p>
+
+            <div className="space-y-4 mt-3">
+              {activeRoomQuestions.map((q, qIdx) => {
+                const studentAns = studentAnswers[q.id];
+                const isCorrect = studentAns === q.correct_option_index;
+                const answered = studentAns !== undefined && studentAns !== null;
+                
+                return (
+                  <div 
+                    key={q.id} 
+                    className={`p-4 rounded-xl border transition-all text-xs space-y-3 bg-white dark:bg-gray-950 ${
+                      !answered
+                        ? "border-gray-200 dark:border-gray-850"
+                        : isCorrect
+                        ? "border-emerald-100 dark:border-emerald-950/40 ring-1 ring-emerald-500/10"
+                        : "border-red-100 dark:border-red-950/40 ring-1 ring-red-500/10"
+                    }`}
+                  >
+                    {/* Header: Question Number & Result Status */}
+                    <div className="flex items-start justify-between gap-3 border-b pb-2 border-gray-100 dark:border-gray-850">
+                      <div className="font-bold text-gray-850 dark:text-white flex items-start gap-1">
+                        <span>{qIdx + 1}.</span>
+                        <span>{q.question_text}</span>
+                      </div>
+                      
+                      {/* Status Badge */}
+                      {isCorrect ? (
+                        <span className="flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold bg-success-50 text-success-700 dark:bg-success-950/20 dark:text-success-400 uppercase">
+                          <Check className="size-3 stroke-[3px]" /> Benar
+                        </span>
+                      ) : answered ? (
+                        <span className="flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400 uppercase">
+                          <X className="size-3 stroke-[3px]" /> Salah
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold bg-gray-50 text-gray-500 dark:bg-gray-900/40 dark:text-gray-400 uppercase">
+                          ⏱️ Lewat
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Option Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] pl-3">
+                      {q.options.map((opt, oIdx) => {
+                        const isThisCorrect = oIdx === q.correct_option_index;
+                        const isSelectedByStudent = studentAns === oIdx;
+
+                        let optClass = "border-gray-150 dark:border-gray-850 text-gray-650 dark:text-gray-400 bg-gray-50/10";
+                        if (isThisCorrect) {
+                          optClass = "border-success-400 bg-success-50/20 text-success-800 dark:bg-success-950/10 dark:text-success-400 font-semibold";
+                        } else if (isSelectedByStudent) {
+                          optClass = "border-red-400 bg-red-50/20 text-red-800 dark:bg-red-950/10 dark:text-red-400";
+                        }
+
+                        return (
+                          <div 
+                            key={oIdx}
+                            className={`p-2 rounded-lg border text-left flex items-center gap-2 ${optClass}`}
+                          >
+                            <span className="font-bold opacity-60 text-[10px]">
+                              {String.fromCharCode(65 + oIdx)}
+                            </span>
+                            <span>{opt}</span>
+                            {isThisCorrect && <Check className="size-3.5 text-success-600 dark:text-success-400 ml-auto shrink-0" />}
+                            {!isThisCorrect && isSelectedByStudent && <X className="size-3.5 text-red-600 dark:text-red-400 ml-auto shrink-0" />}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Explanation */}
+                    {q.explanation && (
+                      <div className="bg-amber-50/20 dark:bg-amber-950/5 border border-amber-100/50 dark:border-amber-900/30 p-2.5 rounded-lg text-[10px] text-gray-500 dark:text-gray-400 mt-2 flex items-start gap-1.5 leading-relaxed">
+                        <span className="text-amber-500 shrink-0 text-xs">💡</span>
+                        <div>
+                          <span className="font-bold text-amber-700 dark:text-amber-400">Pembahasan:</span> {q.explanation}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
