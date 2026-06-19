@@ -176,6 +176,14 @@ const Kuis: React.FC = () => {
   });
 
   const timerRef = useRef<any>(null);
+  const refreshRoomStateRef = useRef<any>(null);
+  const refreshParticipantsRef = useRef<any>(null);
+
+  // Keep refresh function references up-to-date to avoid stale closure issues
+  useEffect(() => {
+    refreshRoomStateRef.current = refreshRoomState;
+    refreshParticipantsRef.current = refreshParticipants;
+  });
 
   useEffect(() => {
     // 1. Fetch user session
@@ -195,29 +203,39 @@ const Kuis: React.FC = () => {
     };
   }, []);
 
-  // Realtime synchronization listeners
+  // Realtime synchronization listeners & polling fallback
   useEffect(() => {
     let subscription: any = null;
+    let interval: any = null;
 
-    if (myRoom) {
-      // Listen to DB changes in active room or participants
+    if (myRoom?.id) {
+      // Setup Supabase Realtime channel
       subscription = supabase
         .channel(`room-channel-${myRoom.room_code}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "rooms" }, () => {
-          refreshRoomState();
+          if (refreshRoomStateRef.current) refreshRoomStateRef.current();
         })
         .on("postgres_changes", { event: "*", schema: "public", table: "participants" }, () => {
-          refreshParticipants();
+          if (refreshParticipantsRef.current) refreshParticipantsRef.current();
         })
         .subscribe();
+
+      // Setup 3-second polling interval as a fallback (especially when Supabase Realtime replication is not enabled)
+      interval = setInterval(() => {
+        if (refreshRoomStateRef.current) refreshRoomStateRef.current();
+        if (refreshParticipantsRef.current) refreshParticipantsRef.current();
+      }, 3000);
     }
 
     return () => {
       if (subscription) {
         subscription.unsubscribe();
       }
+      if (interval) {
+        clearInterval(interval);
+      }
     };
-  }, [myRoom]);
+  }, [myRoom?.id, myRoom?.room_code]);
 
   // Handle countdown timer during gameplay
   useEffect(() => {
