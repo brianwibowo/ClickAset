@@ -7,8 +7,13 @@ import About from "./pages/About";
 import Profile from "./pages/Profile";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
+import DaftarSiswa from "./pages/DaftarSiswa";
 
 function App() {
+  const userJson = localStorage.getItem("clickaset_user");
+  const currentUser = userJson ? JSON.parse(userJson) : null;
+  const isGuru = currentUser?.role === "GURU";
+
   return (
     <Router>
       <Routes>
@@ -17,6 +22,7 @@ function App() {
           <Route path="/" element={<Materi />} />
           <Route path="/simulasi" element={<Simulasi />} />
           <Route path="/kuis" element={<Kuis />} />
+          {isGuru && <Route path="/daftar-siswa" element={<DaftarSiswa />} />}
           <Route path="/about" element={<About />} />
           <Route path="/profile" element={<Profile />} />
         </Route>

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { History, BookOpen, Award, Download, Trash2, PenLine, MessageCircle, Send, User } from "lucide-react";
+import { supabase } from "../../utils/supabaseClient";
 
 interface SimulationHistoryProps {
   user: any;
@@ -26,6 +27,20 @@ export const SimulationHistory: React.FC<SimulationHistoryProps> = ({
 }) => {
   const [selectedHistoryView, setSelectedHistoryView] = useState<any | null>(null);
   const [komentarInput, setKomentarInput] = useState<string>("");
+
+  const HISTORIES_PER_PAGE = 6;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  React.useEffect(() => {
+    const maxPage = Math.ceil(historyList.length / HISTORIES_PER_PAGE);
+    if (currentPage > maxPage) {
+      setCurrentPage(Math.max(1, maxPage));
+    }
+  }, [historyList.length, currentPage]);
+
+  const totalPages = Math.ceil(historyList.length / HISTORIES_PER_PAGE);
+  const startIndex = (currentPage - 1) * HISTORIES_PER_PAGE;
+  const paginatedHistory = historyList.slice(startIndex, startIndex + HISTORIES_PER_PAGE);
 
   const isGuru = user?.role === "GURU";
 
@@ -56,29 +71,40 @@ export const SimulationHistory: React.FC<SimulationHistoryProps> = ({
 
     // We need to find and update the item in the correct student's localStorage
     const targetStudentId = selectedHistoryView.studentId;
-    if (!targetStudentId) return;
-
-    // Scan localStorage for the correct history key
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("clickaset_sim_history_")) {
+    if (targetStudentId) {
+      const targetKey = `clickaset_sim_history_${targetStudentId}`;
+      const localItemsJson = localStorage.getItem(targetKey);
+      if (localItemsJson) {
         try {
-          const items = JSON.parse(localStorage.getItem(key) || "[]");
+          const items = JSON.parse(localItemsJson);
           const targetIdx = items.findIndex((it: any) => it.id === selectedHistoryView.id);
           if (targetIdx !== -1) {
             const updatedKomentar = [...(items[targetIdx].komentar || []), newKomentar];
             items[targetIdx].komentar = updatedKomentar;
-            localStorage.setItem(key, JSON.stringify(items));
-
-            // Update local modal view
-            setSelectedHistoryView({ ...selectedHistoryView, komentar: updatedKomentar });
-            setKomentarInput("");
-            onRefreshHistory();
-            break;
+            localStorage.setItem(targetKey, JSON.stringify(items));
           }
         } catch { /* skip */ }
       }
     }
+
+    // Also update remote Supabase database
+    const updateDb = async () => {
+      const updatedKomentar = [...(selectedHistoryView.komentar || []), newKomentar];
+      try {
+        await supabase.from("simulation_history").update({ komentar: updatedKomentar }).eq("id", selectedHistoryView.id);
+      } catch (err) {
+        console.error("Gagal mengupdate komentar di database:", err);
+      }
+    };
+    updateDb();
+
+    // Update local modal view state and trigger refresh
+    setSelectedHistoryView({
+      ...selectedHistoryView,
+      komentar: [...(selectedHistoryView.komentar || []), newKomentar]
+    });
+    setKomentarInput("");
+    onRefreshHistory();
   };
 
   return (
@@ -115,93 +141,144 @@ export const SimulationHistory: React.FC<SimulationHistoryProps> = ({
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {historyList.map((item) => (
-                <div 
-                  key={item.id} 
-                  className={`rounded-xl p-5 bg-gray-50/30 dark:bg-gray-900/10 space-y-4 hover:shadow-theme-xs transition-all flex flex-col justify-between ${
-                    highlightedId === item.id 
-                      ? "animate-pulse-outline ring-2 ring-brand-500/20" 
-                      : "border border-gray-105 dark:border-gray-800"
-                  }`}
-                >
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-start">
-                      <h4 className="font-bold text-gray-800 dark:text-white text-sm">
-                        {item.namaAset}
-                      </h4>
-                      <span className="text-[10px] text-gray-450 dark:text-gray-500">
-                        {new Date(item.timestamp).toLocaleDateString("id-ID", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric"
-                        })}
-                      </span>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {paginatedHistory.map((item) => (
+                  <div 
+                    key={item.id} 
+                    className={`rounded-xl p-5 bg-gray-50/30 dark:bg-gray-900/10 space-y-4 hover:shadow-theme-xs transition-all flex flex-col justify-between ${
+                      highlightedId === item.id 
+                        ? "animate-pulse-outline ring-2 ring-brand-500/20" 
+                        : "border border-gray-105 dark:border-gray-800"
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-bold text-gray-800 dark:text-white text-sm">
+                          {item.namaAset}
+                        </h4>
+                        <span className="text-[10px] text-gray-450 dark:text-gray-500">
+                          {new Date(item.timestamp).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric"
+                          })}
+                        </span>
+                      </div>
+
+                      {/* Show student name for guru */}
+                      {isGuru && (item.studentName || item.studentUsername) && (
+                        <div className="flex items-center gap-1 text-[11px] text-brand-600 dark:text-brand-400 font-medium">
+                          <User className="size-3" />
+                          <span>
+                            {item.studentName || "Siswa"}
+                            {item.studentUsername ? ` (@${item.studentUsername})` : " (@tanpa-username)"}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Reflection badge */}
+                      {item.refleksi && (
+                        <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+                          <PenLine className="size-2.5" />
+                          Refleksi terisi
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span>Perolehan:</span>
+                        <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
+                          {formatRupiah(item.totalPerolehan)}
+                        </span>
+
+                        <span>Golongan Pajak:</span>
+                        <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
+                          {golonganRules[item.selectedGolongan]?.name.split(" ")[0] || item.selectedGolongan}
+                        </span>
+
+                        <span>SAK Depr. (Thn 1):</span>
+                        <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
+                          {formatRupiah(item.bebanSAKThn1)}
+                        </span>
+
+                        <span>Pajak Depr. (Thn 1):</span>
+                        <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
+                          {formatRupiah(item.bebanPajakThn1)}
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Show student name for guru */}
-                    {isGuru && item.studentName && (
-                      <div className="flex items-center gap-1 text-[11px] text-brand-600 dark:text-brand-400 font-medium">
-                        <User className="size-3" />
-                        {item.studentName}
-                      </div>
-                    )}
-
-                    {/* Reflection badge */}
-                    {item.refleksi && (
-                      <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400">
-                        <PenLine className="size-2.5" />
-                        Refleksi terisi
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                      <span>Perolehan:</span>
-                      <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
-                        {formatRupiah(item.totalPerolehan)}
-                      </span>
-
-                      <span>Golongan Pajak:</span>
-                      <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
-                        {golonganRules[item.selectedGolongan]?.name.split(" ")[0] || item.selectedGolongan}
-                      </span>
-
-                      <span>SAK Depr. (Thn 1):</span>
-                      <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
-                        {formatRupiah(item.bebanSAKThn1)}
-                      </span>
-
-                      <span>Pajak Depr. (Thn 1):</span>
-                      <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
-                        {formatRupiah(item.bebanPajakThn1)}
-                      </span>
+                    <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-gray-800/80 text-xs">
+                      <button
+                        onClick={() => setSelectedHistoryView(item)}
+                        className="flex-1 py-1.5 bg-brand-50 dark:bg-brand-950/20 text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-950/40 rounded-lg font-semibold transition cursor-pointer text-center"
+                      >
+                        Buka
+                      </button>
+                      <button
+                        onClick={() => downloadSimulationPDF(item)}
+                        className="flex-1 py-1.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 rounded-lg font-semibold transition cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        <Download className="size-3" />
+                        PDF
+                      </button>
+                      <button
+                        onClick={() => onDeleteHistory(item.id)}
+                        className="p-1.5 border border-red-100 dark:border-red-955 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/10 rounded-lg transition cursor-pointer"
+                        title="Hapus Riwayat"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
                     </div>
                   </div>
+                ))}
+              </div>
 
-                  <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-gray-800/80 text-xs">
+              {/* Pagination controls for histories */}
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-100 dark:border-gray-800 text-xs">
+                  <span className="text-gray-500 dark:text-gray-400 text-center sm:text-left">
+                    Menampilkan <span className="font-semibold text-gray-700 dark:text-gray-300">{startIndex + 1}</span> - <span className="font-semibold text-gray-700 dark:text-gray-300">{Math.min(startIndex + HISTORIES_PER_PAGE, historyList.length)}</span> dari <span className="font-semibold text-gray-700 dark:text-gray-300">{historyList.length}</span> riwayat
+                  </span>
+                  
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setSelectedHistoryView(item)}
-                      className="flex-1 py-1.5 bg-brand-50 dark:bg-brand-950/20 text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-950/40 rounded-lg font-semibold transition cursor-pointer text-center"
+                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1.5 border border-gray-200 dark:border-gray-805 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg text-gray-650 dark:text-gray-350 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition font-semibold"
                     >
-                      Buka
+                      Sebelumnya
                     </button>
+                    
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }).map((_, pageIdx) => {
+                        const pageNum = pageIdx + 1;
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold transition cursor-pointer ${
+                              currentPage === pageNum
+                                ? "bg-brand-500 text-white"
+                                : "hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-650 dark:text-gray-350"
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+
                     <button
-                      onClick={() => downloadSimulationPDF(item)}
-                      className="flex-1 py-1.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 rounded-lg font-semibold transition cursor-pointer flex items-center justify-center gap-1"
+                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1.5 border border-gray-200 dark:border-gray-805 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg text-gray-650 dark:text-gray-350 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition font-semibold"
                     >
-                      <Download className="size-3" />
-                      PDF
-                    </button>
-                    <button
-                      onClick={() => onDeleteHistory(item.id)}
-                      className="p-1.5 border border-red-100 dark:border-red-955 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/10 rounded-lg transition cursor-pointer"
-                      title="Hapus Riwayat"
-                    >
-                      <Trash2 className="size-3.5" />
+                      Selanjutnya
                     </button>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           )
         ) : (
@@ -245,6 +322,13 @@ export const SimulationHistory: React.FC<SimulationHistoryProps> = ({
                 <p className="text-xs text-gray-500">
                   Riwayat simulasi diselesaikan pada {new Date(selectedHistoryView.timestamp).toLocaleString("id-ID")}
                 </p>
+                {isGuru && (selectedHistoryView.studentName || selectedHistoryView.studentUsername) && (
+                  <p className="text-xs text-brand-600 dark:text-brand-400 font-semibold flex items-center gap-1 mt-1">
+                    <User className="size-3.5" />
+                    Siswa: {selectedHistoryView.studentName || "Siswa"} 
+                    {selectedHistoryView.studentUsername ? ` (@${selectedHistoryView.studentUsername})` : " (@tanpa-username)"}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setSelectedHistoryView(null)}

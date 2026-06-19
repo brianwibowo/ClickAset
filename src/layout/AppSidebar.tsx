@@ -9,7 +9,7 @@ import {
   UserCircleIcon
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
-import { LogOut } from "lucide-react";
+import { LogOut, Users } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -43,6 +43,20 @@ const navItems: NavItem[] = [
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const location = useLocation();
+
+  const userJson = localStorage.getItem("clickaset_user");
+  const user = userJson ? JSON.parse(userJson) : null;
+  const isGuru = user?.role === "GURU";
+
+  const currentNavItems = [...navItems];
+  if (isGuru) {
+    // Insert "Daftar Siswa" before the last item ("Tentang Aplikasi")
+    currentNavItems.splice(currentNavItems.length - 1, 0, {
+      icon: <Users className="w-5 h-5" />,
+      name: "Daftar Siswa",
+      path: "/daftar-siswa",
+    });
+  }
 
   const isActive = useCallback(
     (path: string) => {
@@ -135,7 +149,7 @@ const AppSidebar: React.FC = () => {
                   <HorizontaLDots className="size-6" />
                 )}
               </h2>
-              {renderMenuItems(navItems)}
+              {renderMenuItems(currentNavItems)}
             </div>
           </div>
         </nav>

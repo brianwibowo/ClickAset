@@ -117,17 +117,22 @@ const Profile: React.FC = () => {
       return;
     }
 
+    if (!user || !user.id) {
+      setBioError("Gagal: Sesi pengguna tidak valid. Silakan login kembali.");
+      return;
+    }
+
     setSavingBio(true);
     showLoading("Menyimpan biodata Anda...");
 
     try {
-      // Check if username is taken (excluding current user)
-      const { data: existingUsers } = await supabase
+      // Check if username is taken (excluding current user, filtered in JS to bypass Postgres UUID syntax verification)
+      const { data: allUsers } = await supabase
         .from("users")
-        .select("*")
-        .neq("id", user.id);
+        .select("*");
 
-      const isTaken = (existingUsers || []).some(
+      const otherUsers = (allUsers || []).filter((u: any) => String(u.id) !== String(user.id));
+      const isTaken = otherUsers.some(
         (u: any) => u.username.toLowerCase() === username.toLowerCase()
       );
 
@@ -190,6 +195,11 @@ const Profile: React.FC = () => {
 
     if (!currentPassword || !newPassword || !confirmPassword) {
       setPwError("Semua kolom kata sandi wajib diisi.");
+      return;
+    }
+
+    if (!user || !user.id) {
+      setPwError("Gagal: Sesi pengguna tidak valid. Silakan login kembali.");
       return;
     }
 

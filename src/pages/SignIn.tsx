@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { User, Lock, Phone, ArrowLeft } from "lucide-react";
+import { User, Lock, ArrowLeft } from "lucide-react";
 import { supabase } from "../utils/supabaseClient";
 import { showLoading, hideLoading } from "../utils/loader";
 
@@ -13,8 +13,7 @@ const SignIn: React.FC = () => {
 
   // Forgot password states
   const [isResetMode, setIsResetMode] = useState(false);
-  const [resetUsername, setResetUsername] = useState("");
-  const [resetPhone, setResetPhone] = useState("");
+  const [resetUserOrPhone, setResetUserOrPhone] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
   useEffect(() => {
@@ -66,7 +65,10 @@ const SignIn: React.FC = () => {
     try {
       // Default bypass logins for easy offline/demo testing
       if (usernameOrPhone.toLowerCase() === "guru" && password === "guru") {
-        const defaultGuru = {
+        const { data: users } = await supabase.from("users").select("*");
+        const dbGuru = (users || []).find((u: any) => u.username.toLowerCase() === "guru");
+        const defaultGuru = dbGuru || {
+          id: "mock-guru",
           username: "guru",
           phone_number: "08123456789",
           full_name: "Ibu Indah (Guru Akuntansi)",
@@ -80,7 +82,10 @@ const SignIn: React.FC = () => {
         }, 1000);
         return;
       } else if (usernameOrPhone.toLowerCase() === "siswa" && password === "siswa") {
-        const defaultSiswa = {
+        const { data: users } = await supabase.from("users").select("*");
+        const dbSiswa = (users || []).find((u: any) => u.username.toLowerCase() === "siswa");
+        const defaultSiswa = dbSiswa || {
+          id: "mock-siswa",
           username: "siswa",
           phone_number: "08987654321",
           full_name: "Budi Pratama",
@@ -128,14 +133,15 @@ const SignIn: React.FC = () => {
     setError("");
     setSuccess("");
 
-    if (!resetUsername || !resetPhone || !newPassword) {
+    if (!resetUserOrPhone || !newPassword) {
       setError("Semua kolom untuk reset wajib diisi.");
       return;
     }
 
     showLoading("Memproses atur ulang sandi...");
     try {
-      if (resetUsername === "guru" || resetUsername === "siswa") {
+      const cleanInput = resetUserOrPhone.toLowerCase();
+      if (cleanInput === "guru" || cleanInput === "siswa") {
         setSuccess("Kata sandi default tidak dapat diubah, silakan langsung login.");
         setIsResetMode(false);
         return;
@@ -147,8 +153,8 @@ const SignIn: React.FC = () => {
 
       const foundUser = registeredUsers.find(
         (u: any) =>
-          u.username.toLowerCase() === resetUsername.toLowerCase() &&
-          u.phone_number === resetPhone
+          u.username.toLowerCase() === cleanInput ||
+          u.phone_number === resetUserOrPhone
       );
 
       if (foundUser) {
@@ -159,10 +165,10 @@ const SignIn: React.FC = () => {
 
         setSuccess("Kata sandi berhasil diperbarui! Silakan login.");
         setIsResetMode(false);
-        setUsernameOrPhone(resetUsername);
+        setUsernameOrPhone(resetUserOrPhone);
         setPassword("");
       } else {
-        setError("Kombinasi Username dan Nomor HP tidak terdaftar.");
+        setError("Username atau Nomor HP tidak terdaftar.");
       }
     } catch (err: any) {
       setError("Gagal reset sandi: " + err.message);
@@ -211,32 +217,16 @@ const SignIn: React.FC = () => {
           /* Reset Password Form */
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-black dark:text-white mb-2">Username</label>
+              <label className="block text-sm font-medium text-black dark:text-white mb-2">Username / Nomor HP</label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 flex items-center pl-3">
                   <User className="w-4.5 h-4.5 text-gray-400" />
                 </span>
                 <input
                   type="text"
-                  value={resetUsername}
-                  onChange={(e) => setResetUsername(e.target.value)}
-                  placeholder="Ketik username Anda"
-                  className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2.5 pl-10 pr-4 text-black outline-none transition focus:border-[#3C50E0] active:border-[#3C50E0] dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-[#3C50E0]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-black dark:text-white mb-2">Nomor HP</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Phone className="w-4.5 h-4.5 text-gray-400" />
-                </span>
-                <input
-                  type="text"
-                  value={resetPhone}
-                  onChange={(e) => setResetPhone(e.target.value)}
-                  placeholder="08xxxxxxxx"
+                  value={resetUserOrPhone}
+                  onChange={(e) => setResetUserOrPhone(e.target.value)}
+                  placeholder="Ketik username atau nomor HP Anda"
                   className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2.5 pl-10 pr-4 text-black outline-none transition focus:border-[#3C50E0] active:border-[#3C50E0] dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-[#3C50E0]"
                 />
               </div>

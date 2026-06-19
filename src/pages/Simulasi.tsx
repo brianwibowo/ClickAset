@@ -3,6 +3,8 @@ import { RotateCcw } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { SimulationSteps } from "../components/simulasi/SimulationSteps";
 import { SimulationHistory } from "../components/simulasi/SimulationHistory";
+import { supabase } from "../utils/supabaseClient";
+import { showLoading, hideLoading } from "../utils/loader";
 
 // Types
 interface SAKRow {
@@ -637,40 +639,151 @@ const Simulasi: React.FC = () => {
     setNilaiResiduSAKInput("10.000.000");
   };
 
-  const refreshHistoryList = () => {
+  const refreshHistoryList = async () => {
     const userJson = localStorage.getItem("clickaset_user");
     if (userJson) {
       const user = JSON.parse(userJson);
       const isGuru = user.role === "GURU";
 
-      if (isGuru) {
-        // Guru: scan all student history keys
-        const allHistory: any[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith("clickaset_sim_history_")) {
-            try {
-              const items = JSON.parse(localStorage.getItem(key) || "[]");
-              allHistory.push(...items);
-            } catch { /* skip corrupted */ }
+      showLoading("Memuat riwayat simulasi...");
+      try {
+        if (isGuru) {
+          // Fetch all users to resolve names for legacy or updated history items
+          let allDbUsers: any[] = [];
+          try {
+            const { data: dbUsers } = await supabase.from("users").select("*");
+            allDbUsers = dbUsers || [];
+          } catch (e) {
+            console.warn("Could not fetch users to resolve names in history:", e);
           }
+
+          // Guru: Fetch all simulation histories from Supabase database
+          let dbHistory: any[] = [];
+          try {
+            const { data: dbHist } = await supabase.from("simulation_history").select("*");
+            dbHistory = dbHist || [];
+          } catch (e) {
+            console.warn("Could not fetch simulation history from database:", e);
+          }
+
+          // Guru: scan all student history keys in localStorage (to merge)
+          const localHistoryMap: Record<string, any> = {};
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith("clickaset_sim_history_")) {
+              try {
+                const userId = key.replace("clickaset_sim_history_", "");
+                const items = JSON.parse(localStorage.getItem(key) || "[]");
+                items.forEach((item: any) => {
+                  localHistoryMap[item.id] = { ...item, userId };
+                });
+              } catch { /* skip corrupted */ }
+            }
+          }
+
+          const combinedMap: Record<string, any> = {};
+          const isUuid = (str: string) => /^[0-9a-fA-F-]{36}$/.test(str);
+
+          // Process local items first
+          Object.entries(localHistoryMap).forEach(([id, item]) => {
+            const userId = item.userId;
+            const dbUser = allDbUsers.find(
+              (u: any) => String(u.id) === String(userId) || u.username.toLowerCase() === userId.toLowerCase()
+            );
+            const resolvedUsername = dbUser?.username || item.studentUsername || (userId && userId !== "guest" && !isUuid(userId) ? userId : "");
+            const rawName = item.studentName || dbUser?.full_name || dbUser?.username || userId;
+            const resolvedName = (rawName === "Siswa" || isUuid(rawName))
+              ? (dbUser?.full_name || dbUser?.username || resolvedUsername || "Siswa")
+              : rawName;
+
+            combinedMap[id] = {
+              ...item,
+              studentId: item.studentId || userId,
+              studentName: resolvedName,
+              studentUsername: resolvedUsername
+            };
+          });
+
+          // Overlay with database items (remote database has precedence)
+          dbHistory.forEach((item: any) => {
+            const userId = item.studentId || "";
+            const dbUser = allDbUsers.find(
+              (u: any) => String(u.id) === String(userId) || (item.studentUsername && u.username.toLowerCase() === item.studentUsername.toLowerCase())
+            );
+            const resolvedUsername = item.studentUsername || dbUser?.username || "";
+            const resolvedName = item.studentName || dbUser?.full_name || dbUser?.username || "Siswa";
+
+            combinedMap[item.id] = {
+              ...item,
+              studentId: userId || item.studentId,
+              studentName: resolvedName,
+              studentUsername: resolvedUsername
+            };
+          });
+
+          const allHistory = Object.values(combinedMap);
+          // Sort by most recent
+          allHistory.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          setHistoryList(allHistory);
+        } else {
+          // Siswa: own history from database + localStorage
+          const userId = user.id || user.email || user.username || "guest";
+          const historyKey = `clickaset_sim_history_${userId}`;
+          
+          let dbHistory: any[] = [];
+          if (userId !== "guest") {
+            try {
+              const { data: dbHist } = await supabase.from("simulation_history").select("*").eq("studentId", userId);
+              dbHistory = dbHist || [];
+            } catch (e) {
+              console.warn("Could not fetch own history from database:", e);
+            }
+          }
+
+          let localHistory: any[] = [];
+          const existingHistoryJson = localStorage.getItem(historyKey);
+          if (existingHistoryJson) {
+            try {
+              localHistory = JSON.parse(existingHistoryJson);
+            } catch {
+              localHistory = [];
+            }
+          }
+
+          const combinedMap: Record<string, any> = {};
+          localHistory.forEach((item: any) => {
+            combinedMap[item.id] = {
+              ...item,
+              studentName: item.studentName || user.full_name || "Siswa",
+              studentUsername: item.studentUsername || user.username || "",
+              studentId: item.studentId || userId
+            };
+          });
+
+          dbHistory.forEach((item: any) => {
+            combinedMap[item.id] = {
+              ...item,
+              studentName: item.studentName || user.full_name || "Siswa",
+              studentUsername: item.studentUsername || user.username || "",
+              studentId: item.studentId || userId
+            };
+          });
+
+          const finalHistory = Object.values(combinedMap);
+          finalHistory.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          setHistoryList(finalHistory);
         }
-        // Sort by most recent
-        allHistory.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        setHistoryList(allHistory);
-      } else {
-        // Siswa: only own history
-        const userId = user.id || user.email || user.username || "guest";
-        const historyKey = `clickaset_sim_history_${userId}`;
-        const existingHistoryJson = localStorage.getItem(historyKey);
-        setHistoryList(existingHistoryJson ? JSON.parse(existingHistoryJson) : []);
+      } catch (err) {
+        console.error("Gagal merefresh riwayat simulasi:", err);
+      } finally {
+        hideLoading();
       }
     } else {
       setHistoryList([]);
     }
   };
 
-  const saveSimulationToHistory = () => {
+  const saveSimulationToHistory = async () => {
     const userJson = localStorage.getItem("clickaset_user");
     if (!userJson) return;
     const user = JSON.parse(userJson);
@@ -710,6 +823,7 @@ const Simulasi: React.FC = () => {
       chartData,
       // Reflection & identity metadata
       studentName: user.full_name || user.username || "Siswa",
+      studentUsername: user.username || "",
       studentId: userId,
       refleksi: null,
       komentar: []
@@ -717,12 +831,28 @@ const Simulasi: React.FC = () => {
 
     setCurrentSimHistoryId(newId);
 
+    // Save locally
     const updatedHistory = [newHistoryItem, ...existingHistory];
     localStorage.setItem(historyKey, JSON.stringify(updatedHistory));
+
+    // Save to database if logged in and not guest
+    if (userId !== "guest") {
+      try {
+        const isUuid = (str: string) => /^[0-9a-fA-F-]{36}$/.test(str);
+        const dbPayload = {
+          ...newHistoryItem,
+          studentId: isUuid(userId) ? userId : null
+        };
+        await supabase.from("simulation_history").insert(dbPayload);
+      } catch (err) {
+        console.error("Gagal menyimpan ke database Supabase:", err);
+      }
+    }
+
     refreshHistoryList();
   };
 
-  const handleSaveReflection = (text: string) => {
+  const handleSaveReflection = async (text: string) => {
     const userJson = localStorage.getItem("clickaset_user");
     if (!userJson) return;
     const user = JSON.parse(userJson);
@@ -746,6 +876,21 @@ const Simulasi: React.FC = () => {
     });
 
     localStorage.setItem(historyKey, JSON.stringify(updatedHistory));
+
+    // Save reflection to remote database if logged in
+    if (userId !== "guest") {
+      try {
+        await supabase.from("simulation_history").update({
+          refleksi: {
+            text,
+            submittedAt: new Date().toISOString()
+          }
+        }).eq("id", currentSimHistoryId);
+      } catch (err) {
+        console.error("Gagal mengupdate refleksi di database:", err);
+      }
+    }
+
     setRefleksiSaved(true);
     refreshHistoryList();
   };
@@ -1003,7 +1148,7 @@ const Simulasi: React.FC = () => {
     doc.save(docFilename);
   };
 
-  const handleDeleteHistory = (id: string) => {
+  const handleDeleteHistory = async (id: string) => {
     if (!window.confirm("Apakah Anda yakin ingin menghapus riwayat simulasi ini?")) return;
     
     const userJson = localStorage.getItem("clickaset_user");
@@ -1013,11 +1158,20 @@ const Simulasi: React.FC = () => {
 
     const historyKey = `clickaset_sim_history_${userId}`;
     const existingHistoryJson = localStorage.getItem(historyKey);
-    if (!existingHistoryJson) return;
-
-    const existingHistory = JSON.parse(existingHistoryJson);
-    const updatedHistory = existingHistory.filter((item: any) => item.id !== id);
-    localStorage.setItem(historyKey, JSON.stringify(updatedHistory));
+    if (existingHistoryJson) {
+      const existingHistory = JSON.parse(existingHistoryJson);
+      const updatedHistory = existingHistory.filter((item: any) => item.id !== id);
+      localStorage.setItem(historyKey, JSON.stringify(updatedHistory));
+    }
+    
+    // Delete in Supabase if logged in
+    if (userId !== "guest") {
+      try {
+        await supabase.from("simulation_history").delete().eq("id", id);
+      } catch (e) {
+        console.error("Gagal menghapus riwayat dari database:", e);
+      }
+    }
     
     refreshHistoryList();
   };
