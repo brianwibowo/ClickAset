@@ -1,36 +1,8 @@
 import React, { useState, useEffect } from "react";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend
-} from "recharts";
-import {
-  ArrowRight,
-  ArrowLeft,
-  Calendar,
-  DollarSign,
-  CheckCircle2,
-  AlertTriangle,
-  TrendingDown,
-  RotateCcw,
-  Sparkles,
-  Truck,
-  Building2,
-  Play,
-  Check,
-  Info,
-  BookOpen,
-  Award,
-  Trash2,
-  Download,
-  History
-} from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { jsPDF } from "jspdf";
+import { SimulationSteps } from "../components/simulasi/SimulationSteps";
+import { SimulationHistory } from "../components/simulasi/SimulationHistory";
 
 // Types
 interface SAKRow {
@@ -40,6 +12,7 @@ interface SAKRow {
   beban: number;
   akumulasi: number;
   nilaiBuku: number;
+  volume?: number;
 }
 
 interface PajakRow {
@@ -99,11 +72,31 @@ const Simulasi: React.FC = () => {
   const [golonganFeedback, setGolonganFeedback] = useState<{ isCorrect: boolean; text: string } | null>(null);
 
   // Step 4: Metode & Asumsi
-  const [metodeSAK, setMetodeSAK] = useState<"GL" | "SM">("GL");
+  const [metodeSAK, setMetodeSAK] = useState<"GL" | "SM" | "JAT" | "SJK" | "SHP">("GL");
   const [metodePajak, setMetodePajak] = useState<"GL" | "SM">("GL");
   const [nilaiResiduSAK, setNilaiResiduSAK] = useState<number>(10000000);
   const [masaManfaatSAK, setMasaManfaatSAK] = useState<number>(8);
   const [nilaiResiduSAKInput, setNilaiResiduSAKInput] = useState<string>("10.000.000");
+
+  // SJK (Service Hours) and SHP (Productive Output) inputs
+  const [totalKapasitasJam, setTotalKapasitasJam] = useState<number>(20000);
+  const [totalKapasitasJamInput, setTotalKapasitasJamInput] = useState<string>("20.000");
+  const [jamTahun1, setJamTahun1] = useState<number>(3000);
+  const [jamTahun1Input, setJamTahun1Input] = useState<string>("3.000");
+
+  const [totalKapasitasProduksi, setTotalKapasitasProduksi] = useState<number>(50000);
+  const [totalKapasitasProduksiInput, setTotalKapasitasProduksiInput] = useState<string>("50.000");
+  const [produksiTahun1, setProduksiTahun1] = useState<number>(8000);
+  const [produksiTahun1Input, setProduksiTahun1Input] = useState<string>("8.000");
+
+  // Yearly arrays for SJK and SHP
+  const [jamKerjaPerTahun, setJamKerjaPerTahun] = useState<number[]>(Array(8).fill(0));
+  const [jamKerjaPerTahunInput, setJamKerjaPerTahunInput] = useState<string[]>(Array(8).fill(""));
+  const [produksiPerTahun, setProduksiPerTahun] = useState<number[]>(Array(8).fill(0));
+  const [produksiPerTahunInput, setProduksiPerTahunInput] = useState<string[]>(Array(8).fill(""));
+
+  // Modal Confirmation states
+  const [showResetModal, setShowResetModal] = useState<boolean>(false);
 
   // Step 5: Perhitungan
   const [tabelSAK, setTabelSAK] = useState<SAKRow[]>([]);
@@ -121,9 +114,12 @@ const Simulasi: React.FC = () => {
   const [journalFeedback, setJournalFeedback] = useState<string>("");
   const [confettiParticles, setConfettiParticles] = useState<any[]>([]);
 
+  // Reflection state
+  const [refleksiSaved, setRefleksiSaved] = useState<boolean>(false);
+  const [currentSimHistoryId, setCurrentSimHistoryId] = useState<string>("");
+
   // Simulation History state
   const [historyList, setHistoryList] = useState<any[]>([]);
-  const [selectedHistoryView, setSelectedHistoryView] = useState<any | null>(null);
 
   // Auto calculate total perolehan on Step 1 changes
   useEffect(() => {
@@ -153,7 +149,16 @@ const Simulasi: React.FC = () => {
     if (step === 5) {
       calculateSchedules();
     }
-  }, [step, metodeSAK, metodePajak, nilaiResiduSAK, masaManfaatSAK, selectedGolongan]);
+  }, [
+    step,
+    metodeSAK,
+    metodePajak,
+    nilaiResiduSAK,
+    masaManfaatSAK,
+    selectedGolongan,
+    jamKerjaPerTahun,
+    produksiPerTahun
+  ]);
 
   // Helper formatter currency Rupiah
   const formatRupiah = (val: number) => {
@@ -172,6 +177,70 @@ const Simulasi: React.FC = () => {
     if (!numStr) return "";
     return new Intl.NumberFormat("id-ID").format(Number(numStr));
   };
+
+  // Synchronize arrays when masaManfaatSAK changes
+  useEffect(() => {
+    setJamKerjaPerTahun((prev) => {
+      const newArr = [...prev];
+      if (newArr.length < masaManfaatSAK) {
+        while (newArr.length < masaManfaatSAK) newArr.push(0);
+      } else if (newArr.length > masaManfaatSAK) {
+        newArr.splice(masaManfaatSAK);
+      }
+      return newArr;
+    });
+
+    setJamKerjaPerTahunInput((prev) => {
+      const newArr = [...prev];
+      if (newArr.length < masaManfaatSAK) {
+        while (newArr.length < masaManfaatSAK) newArr.push("");
+      } else if (newArr.length > masaManfaatSAK) {
+        newArr.splice(masaManfaatSAK);
+      }
+      return newArr;
+    });
+
+    setProduksiPerTahun((prev) => {
+      const newArr = [...prev];
+      if (newArr.length < masaManfaatSAK) {
+        while (newArr.length < masaManfaatSAK) newArr.push(0);
+      } else if (newArr.length > masaManfaatSAK) {
+        newArr.splice(masaManfaatSAK);
+      }
+      return newArr;
+    });
+
+    setProduksiPerTahunInput((prev) => {
+      const newArr = [...prev];
+      if (newArr.length < masaManfaatSAK) {
+        while (newArr.length < masaManfaatSAK) newArr.push("");
+      } else if (newArr.length > masaManfaatSAK) {
+        newArr.splice(masaManfaatSAK);
+      }
+      return newArr;
+    });
+  }, [masaManfaatSAK]);
+
+  // Auto-calculate total capacity and first year capacity from yearly inputs
+  useEffect(() => {
+    const totalJam = jamKerjaPerTahun.reduce((sum, val) => sum + val, 0);
+    setTotalKapasitasJam(totalJam);
+    setTotalKapasitasJamInput(formatRibuan(totalJam));
+    
+    const j1 = jamKerjaPerTahun[0] || 0;
+    setJamTahun1(j1);
+    setJamTahun1Input(formatRibuan(j1));
+  }, [jamKerjaPerTahun]);
+
+  useEffect(() => {
+    const totalProd = produksiPerTahun.reduce((sum, val) => sum + val, 0);
+    setTotalKapasitasProduksi(totalProd);
+    setTotalKapasitasProduksiInput(formatRibuan(totalProd));
+
+    const p1 = produksiPerTahun[0] || 0;
+    setProduksiTahun1(p1);
+    setProduksiTahun1Input(formatRibuan(p1));
+  }, [produksiPerTahun]);
 
   // Run Step 1 Truck Animation
   const runPurchaseSimulation = () => {
@@ -236,60 +305,105 @@ const Simulasi: React.FC = () => {
     const sakRows: SAKRow[] = [];
     let bvSAK = perolehan;
     let accumSAK = 0;
-    let remainingMonthsSAK = nSAK * 12;
     let currentYearSAK = startYearSAK;
 
-    // Year 1 SAK
-    const y1MonthsSAK = 13 - startMonthSAK;
-    let y1BebanSAK = 0;
+    const annualDeps: number[] = [];
+    const base = perolehan - residuSAK;
 
     if (metodeSAK === "GL") {
-      const annualDep = (perolehan - residuSAK) / nSAK;
-      y1BebanSAK = Math.min(bvSAK - residuSAK, (annualDep / 12) * y1MonthsSAK);
-    } else {
-      // Saldo Menurun SAK (Double Declining)
+      const depVal = base / nSAK;
+      for (let k = 1; k <= nSAK; k++) {
+        annualDeps.push(depVal);
+      }
+    } else if (metodeSAK === "SM") {
+      let tempBv = perolehan;
       const rate = 2 / nSAK;
-      const annualDep = bvSAK * rate;
-      y1BebanSAK = Math.min(bvSAK - residuSAK, (annualDep / 12) * y1MonthsSAK);
-    }
-
-    accumSAK += y1BebanSAK;
-    bvSAK -= y1BebanSAK;
-    remainingMonthsSAK -= y1MonthsSAK;
-
-    sakRows.push({
-      year: currentYearSAK,
-      months: y1MonthsSAK,
-      hargaPerolehan: perolehan,
-      beban: Math.round(y1BebanSAK),
-      akumulasi: Math.round(accumSAK),
-      nilaiBuku: Math.max(residuSAK, Math.round(bvSAK))
-    });
-
-    // Subsequent years SAK
-    while (remainingMonthsSAK > 0) {
-      currentYearSAK += 1;
-      const months = Math.min(12, remainingMonthsSAK);
-      let beban = 0;
-
-      if (metodeSAK === "GL") {
-        const annualDep = (perolehan - residuSAK) / nSAK;
-        beban = Math.min(bvSAK - residuSAK, (annualDep / 12) * months);
-      } else {
-        // SM SAK
-        const rate = 2 / nSAK;
-        if (remainingMonthsSAK <= 12) {
-          // Last period: write down remaining book value to residual value
-          beban = bvSAK - residuSAK;
+      for (let k = 1; k <= nSAK; k++) {
+        if (k === nSAK) {
+          annualDeps.push(tempBv - residuSAK);
         } else {
-          const annualDep = bvSAK * rate;
-          beban = Math.min(bvSAK - residuSAK, (annualDep / 12) * months);
+          const depVal = Math.min(tempBv - residuSAK, tempBv * rate);
+          annualDeps.push(depVal);
+          tempBv -= depVal;
         }
       }
+    } else if (metodeSAK === "JAT") {
+      const sumDigits = (nSAK * (nSAK + 1)) / 2;
+      for (let k = 1; k <= nSAK; k++) {
+        const depVal = base * ((nSAK - k + 1) / sumDigits);
+        annualDeps.push(depVal);
+      }
+    } else if (metodeSAK === "SJK") {
+      const totalHrs = jamKerjaPerTahun.reduce((sum, val) => sum + val, 0) || 1;
+      const rate = base / totalHrs;
+      for (let k = 1; k <= nSAK; k++) {
+        const yrHrs = jamKerjaPerTahun[k - 1] || 0;
+        annualDeps.push(yrHrs * rate);
+      }
+    } else if (metodeSAK === "SHP") {
+      const totalProd = produksiPerTahun.reduce((sum, val) => sum + val, 0) || 1;
+      const rate = base / totalProd;
+      for (let k = 1; k <= nSAK; k++) {
+        const yrProd = produksiPerTahun[k - 1] || 0;
+        annualDeps.push(yrProd * rate);
+      }
+    }
 
+    const y1MonthsSAK = 13 - startMonthSAK;
+    let remainingMonthsSAK = nSAK * 12;
+    let calYearIdx = 0;
+    
+    while (remainingMonthsSAK > 0) {
+      const months = (calYearIdx === 0 && startMonthSAK > 1) ? y1MonthsSAK : Math.min(12, remainingMonthsSAK);
+      let beban = 0;
+      
+      if (startMonthSAK === 1) {
+        beban = annualDeps[calYearIdx] || 0;
+      } else {
+        if (calYearIdx === 0) {
+          beban = (annualDeps[0] || 0) * (y1MonthsSAK / 12);
+        } else {
+          const prevYrPart = (annualDeps[calYearIdx - 1] || 0) * ((12 - y1MonthsSAK) / 12);
+          const currYrPart = (annualDeps[calYearIdx] || 0) * (y1MonthsSAK / 12);
+          beban = prevYrPart + currYrPart;
+        }
+      }
+      
+      if (beban > bvSAK - residuSAK) {
+        beban = bvSAK - residuSAK;
+      }
+      if (beban < 0) beban = 0;
+      
       accumSAK += beban;
       bvSAK -= beban;
       remainingMonthsSAK -= months;
+      
+      let volume = 0;
+      if (metodeSAK === "SJK") {
+        if (startMonthSAK === 1) {
+          volume = jamKerjaPerTahun[calYearIdx] || 0;
+        } else {
+          if (calYearIdx === 0) {
+            volume = (jamKerjaPerTahun[0] || 0) * (y1MonthsSAK / 12);
+          } else {
+            const prevYrPart = (jamKerjaPerTahun[calYearIdx - 1] || 0) * ((12 - y1MonthsSAK) / 12);
+            const currYrPart = (jamKerjaPerTahun[calYearIdx] || 0) * (y1MonthsSAK / 12);
+            volume = prevYrPart + currYrPart;
+          }
+        }
+      } else if (metodeSAK === "SHP") {
+        if (startMonthSAK === 1) {
+          volume = produksiPerTahun[calYearIdx] || 0;
+        } else {
+          if (calYearIdx === 0) {
+            volume = (produksiPerTahun[0] || 0) * (y1MonthsSAK / 12);
+          } else {
+            const prevYrPart = (produksiPerTahun[calYearIdx - 1] || 0) * ((12 - y1MonthsSAK) / 12);
+            const currYrPart = (produksiPerTahun[calYearIdx] || 0) * (y1MonthsSAK / 12);
+            volume = prevYrPart + currYrPart;
+          }
+        }
+      }
 
       sakRows.push({
         year: currentYearSAK,
@@ -297,8 +411,12 @@ const Simulasi: React.FC = () => {
         hargaPerolehan: perolehan,
         beban: Math.round(beban),
         akumulasi: Math.round(accumSAK),
-        nilaiBuku: Math.max(residuSAK, Math.round(bvSAK))
+        nilaiBuku: Math.max(residuSAK, Math.round(bvSAK)),
+        volume: (metodeSAK === "SJK" || metodeSAK === "SHP") ? Math.round(volume) : undefined
       });
+      
+      currentYearSAK += 1;
+      calYearIdx += 1;
     }
 
     // --- PAJAK CALCULATIONS ---
@@ -445,6 +563,10 @@ const Simulasi: React.FC = () => {
       setJournalSuccess(true);
       triggerConfetti();
       saveSimulationToHistory();
+
+      // Play victory sound effect
+      const audio = new Audio("/src/assets/Yayyy! Sound Effect.mp3");
+      audio.play().catch(err => console.log("Play audio error:", err));
     }
   };
 
@@ -492,6 +614,21 @@ const Simulasi: React.FC = () => {
     setJournalFeedback("");
     setConfettiParticles([]);
     setTruckDone(false);
+    setRefleksiSaved(false);
+    setCurrentSimHistoryId("");
+
+    setTotalKapasitasJam(20000);
+    setTotalKapasitasJamInput("20.000");
+    setJamTahun1(3000);
+    setJamTahun1Input("3.000");
+    setTotalKapasitasProduksi(50000);
+    setTotalKapasitasProduksiInput("50.000");
+    setProduksiTahun1(8000);
+    setProduksiTahun1Input("8.000");
+    setJamKerjaPerTahun(Array(8).fill(0));
+    setJamKerjaPerTahunInput(Array(8).fill(""));
+    setProduksiPerTahun(Array(8).fill(0));
+    setProduksiPerTahunInput(Array(8).fill(""));
 
     // Reset formatted inputs
     setHargaBeliInput("240.000.000");
@@ -504,10 +641,30 @@ const Simulasi: React.FC = () => {
     const userJson = localStorage.getItem("clickaset_user");
     if (userJson) {
       const user = JSON.parse(userJson);
-      const userId = user.id || user.email || "guest";
-      const historyKey = `clickaset_sim_history_${userId}`;
-      const existingHistoryJson = localStorage.getItem(historyKey);
-      setHistoryList(existingHistoryJson ? JSON.parse(existingHistoryJson) : []);
+      const isGuru = user.role === "GURU";
+
+      if (isGuru) {
+        // Guru: scan all student history keys
+        const allHistory: any[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("clickaset_sim_history_")) {
+            try {
+              const items = JSON.parse(localStorage.getItem(key) || "[]");
+              allHistory.push(...items);
+            } catch { /* skip corrupted */ }
+          }
+        }
+        // Sort by most recent
+        allHistory.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setHistoryList(allHistory);
+      } else {
+        // Siswa: only own history
+        const userId = user.id || user.email || user.username || "guest";
+        const historyKey = `clickaset_sim_history_${userId}`;
+        const existingHistoryJson = localStorage.getItem(historyKey);
+        setHistoryList(existingHistoryJson ? JSON.parse(existingHistoryJson) : []);
+      }
     } else {
       setHistoryList([]);
     }
@@ -517,14 +674,15 @@ const Simulasi: React.FC = () => {
     const userJson = localStorage.getItem("clickaset_user");
     if (!userJson) return;
     const user = JSON.parse(userJson);
-    const userId = user.id || user.email || "guest";
+    const userId = user.id || user.email || user.username || "guest";
 
     const historyKey = `clickaset_sim_history_${userId}`;
     const existingHistoryJson = localStorage.getItem(historyKey);
     const existingHistory = existingHistoryJson ? JSON.parse(existingHistoryJson) : [];
 
+    const newId = "sim-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9);
     const newHistoryItem = {
-      id: "sim-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9),
+      id: newId,
       timestamp: new Date().toISOString(),
       namaAset,
       tanggalBeli,
@@ -539,15 +697,56 @@ const Simulasi: React.FC = () => {
       metodePajak,
       nilaiResiduSAK,
       masaManfaatSAK,
+      totalKapasitasJam,
+      jamTahun1,
+      totalKapasitasProduksi,
+      produksiTahun1,
+      jamKerjaPerTahun,
+      produksiPerTahun,
       bebanSAKThn1: tabelSAK[0]?.beban || 0,
       bebanPajakThn1: tabelPajak[0]?.beban || 0,
       tabelSAK,
       tabelPajak,
-      chartData
+      chartData,
+      // Reflection & identity metadata
+      studentName: user.full_name || user.username || "Siswa",
+      studentId: userId,
+      refleksi: null,
+      komentar: []
     };
+
+    setCurrentSimHistoryId(newId);
 
     const updatedHistory = [newHistoryItem, ...existingHistory];
     localStorage.setItem(historyKey, JSON.stringify(updatedHistory));
+    refreshHistoryList();
+  };
+
+  const handleSaveReflection = (text: string) => {
+    const userJson = localStorage.getItem("clickaset_user");
+    if (!userJson) return;
+    const user = JSON.parse(userJson);
+    const userId = user.id || user.email || user.username || "guest";
+    const historyKey = `clickaset_sim_history_${userId}`;
+    const existingHistoryJson = localStorage.getItem(historyKey);
+    if (!existingHistoryJson) return;
+
+    const existingHistory = JSON.parse(existingHistoryJson);
+    const updatedHistory = existingHistory.map((item: any) => {
+      if (item.id === currentSimHistoryId) {
+        return {
+          ...item,
+          refleksi: {
+            text,
+            submittedAt: new Date().toISOString()
+          }
+        };
+      }
+      return item;
+    });
+
+    localStorage.setItem(historyKey, JSON.stringify(updatedHistory));
+    setRefleksiSaved(true);
     refreshHistoryList();
   };
 
@@ -632,14 +831,29 @@ const Simulasi: React.FC = () => {
 
     currentY += 3;
     doc.setFillColor(248, 249, 250);
-    doc.rect(15, currentY, 180, 28, "FD");
+    const hasCapacity = data.metodeSAK === "SJK" || data.metodeSAK === "SHP";
+    doc.rect(15, currentY, 180, hasCapacity ? 36 : 28, "FD");
 
     currentY += 6;
-    const getMetodeName = (code: string) => code === "GL" ? "Garis Lurus (Straight Line)" : "Saldo Menurun (Double Declining)";
+    const getMetodeName = (code: string) => {
+      switch (code) {
+        case "GL": return "Garis Lurus (Straight Line)";
+        case "SM": return "Saldo Menurun (Double Declining)";
+        case "JAT": return "Jumlah Angka Tahun (Sum-of-the-Years-Digits)";
+        case "SJK": return "Satuan Hasil Kerja (Service Hours)";
+        case "SHP": return "Satuan Hasil Produksi (Productive Output)";
+        default: return code;
+      }
+    };
     const rulePajak = GOLONGAN_RULES[data.selectedGolongan as GolonganKey];
     
     drawRow("Metode Akuntansi (SAK)", `: ${getMetodeName(data.metodeSAK)}`);
     drawRow("Masa Manfaat / Nilai Residu (SAK)", `: ${data.masaManfaatSAK} Tahun / ${formatRupiah(data.nilaiResiduSAK)}`);
+    if (data.metodeSAK === "SJK") {
+      drawRow("Taksiran Jam Kerja (Total / Thn 1)", `: ${formatRibuan(data.totalKapasitasJam || 20000)} Jam / ${formatRibuan(data.jamTahun1 || 3000)} Jam`);
+    } else if (data.metodeSAK === "SHP") {
+      drawRow("Taksiran Produksi (Total / Thn 1)", `: ${formatRibuan(data.totalKapasitasProduksi || 50000)} Unit / ${formatRibuan(data.produksiTahun1 || 8000)} Unit`);
+    }
     drawRow("Golongan Pajak (Fiskal)", `: ${rulePajak?.name || data.selectedGolongan}`);
     drawRow("Masa Manfaat & Metode Pajak", `: ${rulePajak?.years || 8} Tahun / ${getMetodeName(data.metodePajak)}`);
 
@@ -734,12 +948,34 @@ const Simulasi: React.FC = () => {
     doc.setTextColor(50, 50, 50);
 
     const maxLines = Math.max(data.tabelSAK?.length || 0, data.tabelPajak?.length || 0);
-    const printLines = Math.min(maxLines, 5);
 
-    for (let i = 0; i < printLines; i++) {
+    for (let i = 0; i < maxLines; i++) {
+      // Handle multi-page overflow for large tables
+      if (currentY + 5.5 > 265) {
+        doc.addPage();
+        currentY = 15;
+
+        // Print header comparison table on the new page
+        doc.setFillColor(59, 145, 155);
+        doc.rect(15, currentY, 180, 6, "F");
+        doc.setFontSize(8);
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.text("Tahun", 18, currentY + 4.5);
+        doc.text("Beban Akuntansi (SAK)", 45, currentY + 4.5);
+        doc.text("Nilai Buku SAK", 95, currentY + 4.5);
+        doc.text("Beban Pajak (Fiskal)", 135, currentY + 4.5);
+        doc.text("Nilai Buku Pajak", 168, currentY + 4.5);
+
+        currentY += 6;
+        doc.setFontSize(7.5);
+        doc.setTextColor(50, 50, 50);
+      }
+
       const sakRowObj = data.tabelSAK?.[i];
       const pajakRowObj = data.tabelPajak?.[i];
 
+      doc.setFont("helvetica", "normal");
       doc.rect(15, currentY, 180, 5.5);
       doc.text(`Thn ${i + 1}`, 18, currentY + 4);
       doc.text(sakRowObj ? formatRupiah(sakRowObj.beban) : "-", 45, currentY + 4);
@@ -747,13 +983,6 @@ const Simulasi: React.FC = () => {
       doc.text(pajakRowObj ? formatRupiah(pajakRowObj.beban) : "-", 135, currentY + 4);
       doc.text(pajakRowObj ? formatRupiah(pajakRowObj.nilaiBuku) : "-", 168, currentY + 4);
       currentY += 5.5;
-    }
-
-    if (maxLines > 5) {
-      doc.rect(15, currentY, 180, 5);
-      doc.setFont("helvetica", "italic");
-      doc.text(`... (+ ${maxLines - 5} tahun berikutnya disembunyikan untuk kerapian halaman)`, 20, currentY + 3.5);
-      currentY += 5;
     }
 
     // Footer
@@ -808,6 +1037,59 @@ const Simulasi: React.FC = () => {
     setMasaManfaatSAK(item.masaManfaatSAK || 8);
     setTabelSAK(item.tabelSAK || []);
     setTabelPajak(item.tabelPajak || []);
+
+    setTotalKapasitasJam(item.totalKapasitasJam || 20000);
+    setTotalKapasitasJamInput(formatRibuan(item.totalKapasitasJam || 20000));
+    setJamTahun1(item.jamTahun1 || 3000);
+    setJamTahun1Input(formatRibuan(item.jamTahun1 || 3000));
+    setTotalKapasitasProduksi(item.totalKapasitasProduksi || 50000);
+    setTotalKapasitasProduksiInput(formatRibuan(item.totalKapasitasProduksi || 50000));
+    setProduksiTahun1(item.produksiTahun1 || 8000);
+    setProduksiTahun1Input(formatRibuan(item.produksiTahun1 || 8000));
+
+    const loadedJam = item.jamKerjaPerTahun || [];
+    if (loadedJam.length === 0) {
+      const totalHrs = item.totalKapasitasJam || 20000;
+      const hrsY1 = item.jamTahun1 || 3000;
+      const nSAK = item.masaManfaatSAK || 8;
+      const jamArr = [hrsY1];
+      if (nSAK > 1) {
+        const remainingHrs = Math.max(0, totalHrs - hrsY1);
+        const wSum = (nSAK * (nSAK - 1)) / 2;
+        for (let k = 2; k <= nSAK; k++) {
+          const weight = nSAK - k + 1;
+          const yrHrs = wSum > 0 ? Math.round((remainingHrs * weight) / wSum) : 0;
+          jamArr.push(yrHrs);
+        }
+      }
+      setJamKerjaPerTahun(jamArr);
+      setJamKerjaPerTahunInput(jamArr.map((v: number) => formatRibuan(v)));
+    } else {
+      setJamKerjaPerTahun(loadedJam);
+      setJamKerjaPerTahunInput(loadedJam.map((v: number) => formatRibuan(v)));
+    }
+
+    const loadedProd = item.produksiPerTahun || [];
+    if (loadedProd.length === 0) {
+      const totalProd = item.totalKapasitasProduksi || 50000;
+      const prodY1 = item.produksiTahun1 || 8000;
+      const nSAK = item.masaManfaatSAK || 8;
+      const prodArr = [prodY1];
+      if (nSAK > 1) {
+        const remainingProd = Math.max(0, totalProd - prodY1);
+        const wSum = (nSAK * (nSAK - 1)) / 2;
+        for (let k = 2; k <= nSAK; k++) {
+          const weight = nSAK - k + 1;
+          const yrProd = wSum > 0 ? Math.round((remainingProd * weight) / wSum) : 0;
+          prodArr.push(yrProd);
+        }
+      }
+      setProduksiPerTahun(prodArr);
+      setProduksiPerTahunInput(prodArr.map((v: number) => formatRibuan(v)));
+    } else {
+      setProduksiPerTahun(loadedProd);
+      setProduksiPerTahunInput(loadedProd.map((v: number) => formatRibuan(v)));
+    }
     
     // Set formatted inputs
     setHargaBeliInput(formatRibuan(item.hargaBeli));
@@ -822,9 +1104,6 @@ const Simulasi: React.FC = () => {
     setJournalAttempt(false);
     setJournalSuccess(false);
     setJournalFeedback("");
-    
-    // Close modal
-    setSelectedHistoryView(null);
     
     setStep(5);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -842,1260 +1121,150 @@ const Simulasi: React.FC = () => {
             Perankan staf akuntansi dalam mengelola aset dari pembelian hingga jurnal penyesuaian (SAK vs Pajak).
           </p>
         </div>
-        <button
-          onClick={handleResetAll}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg shadow-theme-xs hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700 transition"
-        >
-          <RotateCcw className="size-3.5" />
-          Reset Simulasi
-        </button>
+        {step < 6 && (
+          <button
+            onClick={() => setShowResetModal(true)}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg shadow-theme-xs hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700 transition cursor-pointer"
+          >
+            <RotateCcw className="size-3.5" />
+            Reset Simulasi
+          </button>
+        )}
       </div>
 
-      {/* Confetti Elements */}
-      {journalSuccess && (
-        <div className="fixed inset-0 pointer-events-none z-99999 overflow-hidden">
-          {confettiParticles.map(p => (
-            <div
-              key={p.id}
-              className="absolute rounded-sm animate-fall"
-              style={{
-                left: `${p.x}%`,
-                top: `${p.y}%`,
-                width: `${p.size}px`,
-                height: `${p.size}px`,
-                backgroundColor: p.color,
-                animationDelay: `${p.delay}s`,
-                animationDuration: `${p.duration}s`,
-                opacity: 0.8
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Stepper Header (Premium Wizard Navigator) */}
-      <div className="bg-white border border-gray-200 dark:border-gray-800 dark:bg-gray-950 rounded-xl p-4 shadow-theme-xs">
-        <div className="flex flex-nowrap items-center justify-between overflow-x-auto no-scrollbar py-2">
-          {[
-            { num: 1, label: "Pembelian" },
-            { num: 2, label: "Timeline" },
-            { num: 3, label: "Golongan" },
-            { num: 4, label: "Metode" },
-            { num: 5, label: "Kalkulasi" },
-            { num: 6, label: "Jurnal" }
-          ].map(s => {
-            const isCompleted = step > s.num;
-            const isActive = step === s.num;
-            return (
-              <div key={s.num} className="flex items-center shrink-0 mx-2">
-                <button
-                  onClick={() => step > s.num && setStep(s.num)}
-                  disabled={step < s.num}
-                  className={`flex items-center justify-center size-8 rounded-full text-xs font-bold transition-all ${isCompleted
-                      ? "bg-success-500 text-white cursor-pointer"
-                      : isActive
-                        ? "bg-brand-500 text-white ring-4 ring-brand-100 dark:ring-brand-500/20"
-                        : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 cursor-not-allowed"
-                    }`}
-                >
-                  {isCompleted ? <Check className="size-4 stroke-[3px]" /> : s.num}
-                </button>
-                <span className={`text-xs font-medium ml-2 hidden md:inline ${isActive ? "text-brand-500 dark:text-brand-400 font-semibold" : isCompleted ? "text-success-600 dark:text-success-500" : "text-gray-400 dark:text-gray-600"
-                  }`}>
-                  {s.label}
-                </span>
-                {s.num < 6 && (
-                  <div className={`h-[2px] w-8 md:w-16 ml-3 ${isCompleted ? "bg-success-500" : "bg-gray-200 dark:bg-gray-800"
-                    }`} />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* MAIN STEP CARDS */}
-      <div className="bg-white border border-gray-200 dark:border-gray-800 dark:bg-gray-950 rounded-2xl p-6 shadow-theme-md min-h-[400px] flex flex-col justify-between">
-
-        {/* STEP 1: PEMBELIAN ASET */}
-        {step === 1 && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <DollarSign className="text-brand-500 size-5" />
-                Tahap 1: Pembelian Aset Tetap
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Tentukan nama aset, tanggal perolehan, serta rincian biaya yang dikeluarkan untuk memperoleh aset tersebut.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-              {/* Form Input */}
-              <div className="space-y-4 bg-gray-50 dark:bg-gray-900/50 p-5 rounded-xl border border-gray-100 dark:border-gray-800">
-                <div>
-                  <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                    Nama Aset Tetap
-                  </label>
-                  <input
-                    type="text"
-                    value={namaAset}
-                    onChange={(e) => setNamaAset(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition"
-                    placeholder="Contoh: Mobil Avanza, Komputer Asus"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                    Tanggal Pembelian
-                  </label>
-                  <input
-                    type="date"
-                    value={tanggalBeli}
-                    onChange={(e) => setTanggalBeli(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                      Harga Beli (Rp)
-                    </label>
-                    <input
-                      type="text"
-                      value={hargaBeliInput}
-                      onChange={(e) => {
-                        const cleanVal = e.target.value.replace(/[^0-9]/g, "");
-                        setHargaBeliInput(formatRibuan(cleanVal));
-                        setHargaBeli(Number(cleanVal) || 0);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition font-mono"
-                      placeholder="Contoh: 240.000.000"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                      Biaya Kirim (Rp)
-                    </label>
-                    <input
-                      type="text"
-                      value={biayaKirimInput}
-                      onChange={(e) => {
-                        const cleanVal = e.target.value.replace(/[^0-9]/g, "");
-                        setBiayaKirimInput(formatRibuan(cleanVal));
-                        setBiayaKirim(Number(cleanVal) || 0);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition font-mono"
-                      placeholder="Contoh: 5.000.000"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                      Biaya Balik Nama / BBN (Rp)
-                    </label>
-                    <input
-                      type="text"
-                      value={biayaBbnInput}
-                      onChange={(e) => {
-                        const cleanVal = e.target.value.replace(/[^0-9]/g, "");
-                        setBiayaBbnInput(formatRibuan(cleanVal));
-                        setBiayaBbn(Number(cleanVal) || 0);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition font-mono"
-                      placeholder="Contoh: 5.000.000"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
-                  <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">
-                    Total Harga Perolehan:
-                  </span>
-                  <span className="text-lg font-bold text-brand-600 dark:text-brand-400">
-                    {formatRupiah(totalPerolehan)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Visual Delivery Animation Canvas */}
-              <div className="relative h-[250px] bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between p-4 shadow-inner">
-                <div className="flex justify-between items-center text-xs text-slate-400">
-                  <span className="flex items-center gap-1"><Info className="size-3" /> Dealer ClickAsset</span>
-                  <span className="flex items-center gap-1"><Building2 className="size-3" /> PT ClickAsset Jaya</span>
-                </div>
-
-                {/* Road Canvas */}
-                <div className="relative flex-1 flex items-center justify-between px-6">
-                  {/* Left Gate (Dealer) */}
-                  <div className="size-14 bg-slate-800 border-2 border-slate-700 rounded-lg flex items-center justify-center text-slate-400 z-10">
-                    🏪
-                  </div>
-
-                  {/* Truck/Asset Container */}
-                  <div
-                    className={`absolute left-10 flex flex-col items-center z-20 transition-all duration-[2500ms] ease-in-out ${isTruckMoving ? "translate-x-[150px] sm:translate-x-[250px] md:translate-x-[350px] lg:translate-x-[200px] xl:translate-x-[300px]" : truckDone ? "translate-x-[150px] sm:translate-x-[250px] md:translate-x-[350px] lg:translate-x-[200px] xl:translate-x-[300px]" : "translate-x-0"
-                      }`}
-                  >
-                    {/* Floating Asset Text Tag */}
-                    <div className="bg-brand-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-lg mb-1 animate-bounce">
-                      {namaAset}
-                    </div>
-                    {/* Delivery Vehicle Icon */}
-                    <div className="text-white p-2 bg-blue-600 rounded-full shadow-lg border border-blue-400">
-                      <Truck className="size-6 animate-pulse" />
-                    </div>
-                  </div>
-
-                  {/* Right Gate (Company) */}
-                  <div className="size-14 bg-slate-800 border-2 border-slate-700 rounded-lg flex items-center justify-center text-slate-400 z-10">
-                    🏢
-                  </div>
-                </div>
-
-                {/* Control simulation button */}
-                <div className="flex justify-center">
-                  {!isTruckMoving && !truckDone ? (
-                    <button
-                      onClick={runPurchaseSimulation}
-                      disabled={!namaAset || hargaBeli <= 0}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm font-medium transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Play className="size-4" />
-                      Simulasi Pengiriman Aset
-                    </button>
-                  ) : isTruckMoving ? (
-                    <span className="text-xs text-brand-400 font-semibold flex items-center gap-2 animate-pulse">
-                      <Truck className="size-4 animate-bounce" /> Aset sedang dikirim ke perusahaan...
-                    </span>
-                  ) : (
-                    <span className="text-xs text-success-500 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="size-4" /> Aset Berhasil Diterima & Tercatat!
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 2: TIMELINE */}
-        {step === 2 && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <Calendar className="text-brand-500 size-5" />
-                Tahap 2: Timeline Penggunaan Aset
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Penyusutan dimulai sejak aset siap digunakan. Tentukan tanggal pemakaian dan tanggal dimulainya penyusutan.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Left Form */}
-              <div className="space-y-4 bg-gray-50 dark:bg-gray-900/50 p-5 rounded-xl border border-gray-100 dark:border-gray-800">
-                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-100 dark:border-gray-700 text-xs text-gray-500">
-                  <span className="font-bold text-gray-600 dark:text-gray-300">Tanggal Pembelian:</span>{" "}
-                  {new Date(tanggalBeli).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                    Tanggal Mulai Pemakaian Aset
-                  </label>
-                  <input
-                    type="date"
-                    min={tanggalBeli}
-                    value={tanggalPakai}
-                    onChange={(e) => setTanggalPakai(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Tanggal aset fisik mulai digunakan secara aktif dalam operasional.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                    Tanggal Dimulai Penyusutan
-                  </label>
-                  <input
-                    type="date"
-                    min={tanggalBeli}
-                    value={tanggalMulaiSusut}
-                    onChange={(e) => setTanggalMulaiSusut(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500 transition"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Saat aset siap digunakan (*available for use*) menurut ketentuan SAK.
-                  </p>
-                </div>
-              </div>
-
-              {/* Right Educational Details */}
-              <div className="space-y-4">
-                <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 rounded-xl p-4">
-                  <h4 className="text-sm font-bold text-blue-800 dark:text-blue-400 flex items-center gap-1.5 mb-2">
-                    <Info className="size-4" /> Perbedaan Mulai Penyusutan
-                  </h4>
-                  <ul className="space-y-2 text-xs text-blue-700 dark:text-blue-300 list-disc list-inside">
-                    <li>
-                      <strong>Ketentuan SAK:</strong> Penyusutan dimulai ketika aset <strong>tersedia untuk digunakan</strong>, yaitu ketika ia berada di lokasi dan kondisi yang diperlukan agar mampu beroperasi secara normal (bisa berbeda dari tanggal pembelian).
-                    </li>
-                    <li>
-                      <strong>Ketentuan Pajak (Fiskal):</strong> Secara baku menurut Pasal 11 UU PPh, penyusutan dimulai pada <strong>bulan dilakukannya pengeluaran (pembelian)</strong>, bukan saat mulai pemakaian (kecuali ada izin khusus dari Dirjen Pajak).
-                    </li>
-                  </ul>
-                </div>
-
-                {tanggalPakai < tanggalBeli && (
-                  <div className="bg-error-50 dark:bg-error-950/40 border border-error-100 dark:border-error-900 rounded-xl p-3 flex items-start gap-2 text-xs text-error-700 dark:text-error-400">
-                    <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-                    <span>Peringatan: Tanggal pemakaian tidak boleh lebih awal dari tanggal pembelian. Silakan periksa kembali.</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 3: GOLONGAN */}
-        {step === 3 && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <Award className="text-brand-500 size-5" />
-                Tahap 3: Klasifikasi Golongan Aset (Fiskal PPh)
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Tebak dan pilih kelompok aset yang sesuai menurut ketentuan pajak. Klasifikasi menentukan masa manfaat dan tarif resmi.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-              {/* Asset Card */}
-              <div className="bg-gradient-to-br from-brand-600 to-indigo-700 text-white rounded-xl p-5 shadow-lg text-center flex flex-col justify-between min-h-[180px]">
-                <span className="text-xs font-semibold tracking-widest opacity-80 uppercase">ASET YANG DISIMULASIKAN</span>
-                <h4 className="text-2xl font-bold my-3">{namaAset}</h4>
-                <div className="text-xs bg-white/10 rounded-lg py-2 px-3 inline-block mx-auto border border-white/15">
-                  Harga Perolehan: {formatRupiah(totalPerolehan)}
-                </div>
-              </div>
-
-              {/* Match Options */}
-              <div className="lg:col-span-2 space-y-4">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Pilih Golongan Pajak:
-                </label>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {(Object.keys(GOLONGAN_RULES) as GolonganKey[]).map((key) => {
-                    const rule = GOLONGAN_RULES[key];
-                    const isSelected = selectedGolongan === key;
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => handleGuessGolongan(key)}
-                        className={`text-left p-4 rounded-xl border transition-all text-sm flex flex-col justify-between hover:scale-[1.01] ${isSelected
-                            ? "border-brand-500 bg-brand-50/50 dark:bg-brand-950/20 dark:border-brand-500"
-                            : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
-                          }`}
-                      >
-                        <span className="font-bold text-gray-800 dark:text-white">{rule.name}</span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">{rule.desc}</span>
-                        <span className="text-xs font-bold text-brand-600 dark:text-brand-400 mt-2">
-                          Masa Manfaat: {rule.years} Tahun
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Gamified Feedback */}
-                {hasAttemptedGolongan && golonganFeedback && (
-                  <div className={`p-4 rounded-xl border text-sm flex items-start gap-2.5 animate-fadeIn ${golonganFeedback.isCorrect
-                      ? "bg-success-50 border-success-100 text-success-800 dark:bg-success-950/20 dark:border-success-900 dark:text-success-400"
-                      : "bg-warning-50 border-warning-100 text-warning-800 dark:bg-warning-950/20 dark:border-warning-900 dark:text-warning-400"
-                    }`}>
-                    {golonganFeedback.isCorrect ? <CheckCircle2 className="size-5 shrink-0 mt-0.5" /> : <Info className="size-5 shrink-0 mt-0.5" />}
-                    <div>
-                      <span className="font-semibold">{golonganFeedback.isCorrect ? "Benar!" : "Penjelasan:"}</span>{" "}
-                      {golonganFeedback.text}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 4: METODE */}
-        {step === 4 && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <TrendingDown className="text-brand-500 size-5" />
-                Tahap 4: Parameter & Metode Penyusutan
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Tentukan metode penyusutan yang akan dibandingkan serta asumsi nilai residu yang digunakan.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* SAK Box */}
-              <div className="border border-gray-200 dark:border-gray-800 rounded-xl p-5 bg-gray-50 dark:bg-gray-900/30 space-y-4">
-                <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-gray-800">
-                  <h4 className="font-bold text-gray-800 dark:text-white flex items-center gap-1.5 text-sm">
-                    <BookOpen className="size-4 text-brand-500" />
-                    Komersial (SAK)
-                  </h4>
-                  <span className="text-[10px] bg-brand-100 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400 px-2 py-0.5 rounded font-semibold">Bebas</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                    Metode Penyusutan SAK
-                  </label>
-                  <select
-                    value={metodeSAK}
-                    onChange={(e) => setMetodeSAK(e.target.value as "GL" | "SM")}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none focus:border-brand-500"
-                  >
-                    <option value="GL">Garis Lurus (Straight Line)</option>
-                    <option value="SM">Saldo Menurun Ganda (Double Declining)</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                      Masa Manfaat (Tahun)
-                    </label>
-                    <input
-                      type="number"
-                      value={masaManfaatSAK}
-                      min={1}
-                      onChange={(e) => setMasaManfaatSAK(Math.max(1, Number(e.target.value)))}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                      Nilai Residu (Rp)
-                    </label>
-                    <input
-                      type="text"
-                      value={nilaiResiduSAKInput}
-                      onChange={(e) => {
-                        const cleanVal = e.target.value.replace(/[^0-9]/g, "");
-                        setNilaiResiduSAKInput(formatRibuan(cleanVal));
-                        setNilaiResiduSAK(Number(cleanVal) || 0);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none font-mono"
-                      placeholder="Contoh: 10.000.000"
-                    />
-                  </div>
-                </div>
-                <p className="text-[10px] text-gray-400">
-                  * Catatan: SAK membolehkan perusahaan menaksir masa manfaat dan nilai sisa secara realistis sesuai kondisi operasional.
-                </p>
-              </div>
-
-              {/* Pajak Box */}
-              <div className="border border-gray-200 dark:border-gray-800 rounded-xl p-5 bg-gray-50 dark:bg-gray-900/30 space-y-4">
-                <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-gray-800">
-                  <h4 className="font-bold text-gray-800 dark:text-white flex items-center gap-1.5 text-sm">
-                    <Award className="size-4 text-emerald-500" />
-                    Fiskal (Pajak)
-                  </h4>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 px-2 py-0.5 rounded font-semibold">Strict/Diatur</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                    Metode Penyusutan Pajak
-                  </label>
-                  <select
-                    value={metodePajak}
-                    disabled={selectedGolongan === "BANGUNAN_PERMANEN" || selectedGolongan === "BANGUNAN_SEMI_PERMANEN"}
-                    onChange={(e) => setMetodePajak(e.target.value as "GL" | "SM")}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm text-gray-800 dark:text-white focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <option value="GL">Garis Lurus (Straight Line)</option>
-                    <option value="SM">Saldo Menurun (Declining Balance)</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-gray-400 dark:text-gray-500 mb-1">
-                      Masa Manfaat (Tahun)
-                    </label>
-                    <input
-                      type="text"
-                      disabled
-                      value={`${GOLONGAN_RULES[selectedGolongan as GolonganKey]?.years || 8} Tahun`}
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/50 rounded-lg text-sm text-gray-500 dark:text-gray-400 cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-gray-400 dark:text-gray-500 mb-1">
-                      Nilai Residu (Rp)
-                    </label>
-                    <input
-                      type="text"
-                      disabled
-                      value="Rp 0"
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/50 rounded-lg text-sm text-gray-500 dark:text-gray-400 cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-
-                {(selectedGolongan === "BANGUNAN_PERMANEN" || selectedGolongan === "BANGUNAN_SEMI_PERMANEN") ? (
-                  <div className="bg-warning-50 dark:bg-warning-950/20 border border-warning-100 dark:border-warning-900 rounded-lg p-2.5 flex items-start gap-2 text-[11px] text-warning-700 dark:text-warning-400">
-                    <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
-                    <span>Aset Bangunan wajib menggunakan Metode Garis Lurus. Metode Saldo Menurun dikunci.</span>
-                  </div>
-                ) : (
-                  <p className="text-[10px] text-gray-400">
-                    * Menurut Ketentuan UU PPh, Nilai Residu akhir masa manfaat dianggap Rp0 dalam penyusutan pajak.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 5: KALKULASI & GRAFIK */}
-        {step === 5 && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <TrendingDown className="text-brand-500 size-5" />
-                Tahap 5: Hasil Perhitungan & Grafik Depresiasi
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Visualisasikan perbandingan kurva penurunan nilai buku aset antara SAK (Komersial) dan Pajak (Fiskal).
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left Column: Recharts Chart */}
-              <div className="lg:col-span-7 bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 rounded-xl p-4 min-h-[300px] flex flex-col justify-between">
-                <span className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 block">
-                  Kurva Penurunan Nilai Buku Aset (Rupiah)
-                </span>
-
-                <div className="w-full h-[250px] text-xs">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.15} />
-                      <XAxis dataKey="year" stroke="#9ca3af" />
-                      <YAxis
-                        stroke="#9ca3af"
-                        tickFormatter={(value) => `Rp ${(value / 1000000).toFixed(0)}jt`}
-                      />
-                      <Tooltip
-                        formatter={(value: any) => formatRupiah(Number(value))}
-                        contentStyle={{ backgroundColor: "#1f2937", border: "none", borderRadius: "8px", color: "#fff" }}
-                      />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="SAK Nilai Buku"
-                        stroke="#465fff"
-                        strokeWidth={2.5}
-                        activeDot={{ r: 8 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="Pajak Nilai Buku"
-                        stroke="#10b981"
-                        strokeWidth={2.5}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Right Column: Tabbed Tables & Comparison Summary */}
-              <div className="lg:col-span-5 space-y-4">
-                {/* Table Tab Selector */}
-                <div className="flex border-b border-gray-200 dark:border-gray-800">
-                  <button
-                    onClick={() => setActiveTabTable("SAK")}
-                    className={`pb-2 text-sm font-semibold border-b-2 px-4 transition-all ${activeTabTable === "SAK"
-                        ? "border-brand-500 text-brand-600 dark:text-brand-400"
-                        : "border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                      }`}
-                  >
-                    Akuntansi (SAK)
-                  </button>
-                  <button
-                    onClick={() => setActiveTabTable("Pajak")}
-                    className={`pb-2 text-sm font-semibold border-b-2 px-4 transition-all ${activeTabTable === "Pajak"
-                        ? "border-brand-500 text-brand-600 dark:text-brand-400"
-                        : "border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                      }`}
-                  >
-                    Pajak (Fiskal)
-                  </button>
-                </div>
-
-                {/* Table Render Container */}
-                <div className="max-h-[220px] overflow-y-auto custom-scrollbar border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-950">
-                  <table className="w-full text-xs text-left text-gray-500 dark:text-gray-400">
-                    <thead className="text-[10px] text-gray-700 bg-gray-50 dark:bg-gray-900 dark:text-gray-300 uppercase">
-                      <tr>
-                        <th className="px-3 py-2 text-center">Thn</th>
-                        <th className="px-3 py-2 text-right">Beban Depresiasi</th>
-                        <th className="px-3 py-2 text-right">Nilai Buku</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activeTabTable === "SAK" ? (
-                        tabelSAK.map((row) => (
-                          <tr key={row.year} className="border-b border-gray-100 dark:border-gray-850 hover:bg-gray-50/50 dark:hover:bg-gray-900/30">
-                            <td className="px-3 py-2 font-medium text-gray-900 dark:text-white text-center">{row.year} <span className="text-[9px] text-gray-400 font-normal">({row.months} bln)</span></td>
-                            <td className="px-3 py-2 text-right text-gray-800 dark:text-gray-300">{formatRupiah(row.beban)}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-brand-600 dark:text-brand-400">{formatRupiah(row.nilaiBuku)}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        tabelPajak.map((row) => (
-                          <tr key={row.year} className="border-b border-gray-100 dark:border-gray-850 hover:bg-gray-50/50 dark:hover:bg-gray-900/30">
-                            <td className="px-3 py-2 font-medium text-gray-900 dark:text-white text-center">{row.year} <span className="text-[9px] text-gray-400 font-normal">({row.months} bln)</span></td>
-                            <td className="px-3 py-2 text-right text-gray-800 dark:text-gray-300">{formatRupiah(row.beban)}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-emerald-600 dark:text-emerald-400">{formatRupiah(row.nilaiBuku)}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Educational Box (Koreksi Fiskal) */}
-                <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-100 dark:border-yellow-900 rounded-xl p-3 text-xs text-yellow-800 dark:text-yellow-400 space-y-1">
-                  <div className="font-bold flex items-center gap-1.5"><Info className="size-3.5" /> Edukasi Koreksi Fiskal:</div>
-                  <p className="leading-relaxed text-[11px]">
-                    Beban penyusutan komersial (SAK) Tahun Ke-1 adalah <strong>{formatRupiah(tabelSAK[0]?.beban || 0)}</strong>, sedangkan versi Pajak adalah <strong>{formatRupiah(tabelPajak[0]?.beban || 0)}</strong>.
-                  </p>
-                  <p className="leading-relaxed text-[11px]">
-                    Perbedaan ini dinamakan <strong>Beda Waktu (Temporary Difference)</strong>. Di akhir tahun saat pelaporan SPT Badan, selisih beban penyusutan wajib direkonsiliasi melalui <strong>Koreksi Fiskal</strong> sehingga laba kena pajak sesuai dengan aturan UU PPh.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 6: JURNAL */}
-        {step === 6 && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <BookOpen className="text-brand-500 size-5" />
-                Tahap 6: Jurnal Penyesuaian Akhir Tahun (Pertama)
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Catat beban penyusutan akuntansi (SAK) Tahun Pertama ke dalam Buku Jurnal Penyesuaian Komersial.
-              </p>
-            </div>
-
-            {!journalSuccess ? (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-
-                {/* Ledger Sheet Inputs */}
-                <div className="lg:col-span-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 rounded-xl p-5 space-y-5">
-
-                  {/* Journal Header Info */}
-                  <div className="flex justify-between items-center text-xs text-gray-500 border-b border-gray-200 dark:border-gray-800 pb-2">
-                    <span><strong>Jurnal Umum Penyesuaian</strong></span>
-                    <span>Periode: 31 Desember {tabelSAK[0]?.year || "2026"}</span>
-                  </div>
-
-                  {/* Journal Rows Grid */}
-                  <div className="space-y-4 text-xs font-semibold">
-                    {/* DEBIT Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
-                      <div>
-                        <label className="block text-[10px] text-gray-400 uppercase mb-1">Debited Account</label>
-                        <select
-                          value={jurnalDebitAkun}
-                          onChange={(e) => setJurnalDebitAkun(e.target.value)}
-                          className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white"
-                        >
-                          <option value="">-- Pilih Akun --</option>
-                          <option value="kas">Kas / Bank</option>
-                          <option value="aset_tetap">Aset Tetap ({namaAset})</option>
-                          <option value="beban_penyusutan">Beban Penyusutan Aset Tetap</option>
-                          <option value="akumulasi_penyusutan">Akumulasi Penyusutan Aset Tetap</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-gray-400 uppercase mb-1">Nominal Debit (Rp)</label>
-                        <input
-                          type="text"
-                          value={jurnalDebitNilai}
-                          onChange={(e) => {
-                            const cleanVal = e.target.value.replace(/[^0-9]/g, "");
-                            setJurnalDebitNilai(formatRibuan(cleanVal));
-                          }}
-                          className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white font-mono"
-                          placeholder="Contoh: 25.000.000"
-                        />
-                      </div>
-                      <div className="text-gray-400 dark:text-gray-600 italic mt-4 md:mt-0 text-[10px] pl-2">
-                        * Posisikan akun beban di sisi Debit.
-                      </div>
-                    </div>
-
-                    {/* KREDIT Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center pt-2 border-t border-dashed border-gray-200 dark:border-gray-800">
-                      <div>
-                        <label className="block text-[10px] text-gray-400 uppercase mb-1">Credited Account</label>
-                        <select
-                          value={jurnalKreditAkun}
-                          onChange={(e) => setJurnalKreditAkun(e.target.value)}
-                          className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white pl-4" // pl-4 to indicate indent credit
-                        >
-                          <option value="">-- Pilih Akun --</option>
-                          <option value="kas">Kas / Bank</option>
-                          <option value="aset_tetap">Aset Tetap ({namaAset})</option>
-                          <option value="beban_penyusutan">Beban Penyusutan Aset Tetap</option>
-                          <option value="akumulasi_penyusutan">Akumulasi Penyusutan Aset Tetap</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-gray-400 uppercase mb-1">Nominal Kredit (Rp)</label>
-                        <input
-                          type="text"
-                          value={jurnalKreditNilai}
-                          onChange={(e) => {
-                            const cleanVal = e.target.value.replace(/[^0-9]/g, "");
-                            setJurnalKreditNilai(formatRibuan(cleanVal));
-                          }}
-                          className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-xs text-gray-800 dark:text-white font-mono"
-                          placeholder="Contoh: 25.000.000"
-                        />
-                      </div>
-                      <div className="text-gray-400 dark:text-gray-600 italic mt-4 md:mt-0 text-[10px] pl-2">
-                        * Posisikan akun akumulasi penyusutan di sisi Kredit.
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Submission and prompt */}
-                  <div className="pt-2 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
-                    <span className="text-xs text-gray-500">
-                      Petunjuk: Gunakan beban komersial tahun pertama yaitu <strong>{formatRupiah(tabelSAK[0]?.beban || 0)}</strong>.
-                    </span>
-                    <button
-                      onClick={handleVerifyJournal}
-                      disabled={!jurnalDebitAkun || !jurnalKreditAkun || !jurnalDebitNilai}
-                      className="px-4 py-2 bg-success-600 hover:bg-success-700 text-white rounded-lg text-sm font-semibold transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Verifikasi Jurnal
-                    </button>
-                  </div>
-                </div>
-
-                {/* Feedback Panel */}
-                <div className="space-y-4">
-                  {journalAttempt && (
-                    <div className={`p-4 rounded-xl border text-sm flex items-start gap-2.5 animate-fadeIn ${journalSuccess
-                        ? "bg-success-50 border-success-100 text-success-800 dark:bg-success-950/20 dark:border-success-900 dark:text-success-400"
-                        : "bg-error-50 border-error-100 text-error-800 dark:bg-error-950/20 dark:border-error-900 dark:text-error-400"
-                      }`}>
-                      {journalSuccess ? <CheckCircle2 className="size-5 shrink-0 mt-0.5" /> : <AlertTriangle className="size-5 shrink-0 mt-0.5" />}
-                      <div>
-                        <span className="font-bold">{journalSuccess ? "Sukses!" : "Koreksi!"}</span>{" "}
-                        {journalFeedback}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 rounded-xl p-4 text-xs text-blue-700 dark:text-blue-300">
-                    <h5 className="font-bold mb-1.5 flex items-center gap-1"><Info className="size-3.5" /> Aturan Penjurnalan:</h5>
-                    <ol className="list-decimal list-inside space-y-1">
-                      <li>Beban Penyusutan bertambah di sisi <strong>Debit</strong> karena merupakan komponen beban operasi perusahaan.</li>
-                      <li>Akumulasi Penyusutan bertambah di sisi <strong>Kredit</strong> sebagai akun kontra-aset pengurang nilai buku aset tetap.</li>
-                    </ol>
-                  </div>
-                </div>
-
-              </div>
-            ) : (
-              // Success Certificate Dashboard / Summary printable view
-              <div className="bg-success-50/50 dark:bg-success-950/10 border border-success-200 dark:border-success-900 rounded-2xl p-6 text-center space-y-6 max-w-xl mx-auto animate-zoomIn">
-                <div className="inline-flex items-center justify-center p-3 bg-success-500 rounded-full text-white shadow-lg shadow-success-200 dark:shadow-none mb-2">
-                  <Sparkles className="size-8 animate-bounce" />
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="text-xl font-bold text-success-800 dark:text-success-400">
-                    Simulasi Siklus Aset Selesai!
-                  </h4>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Anda berhasil menyelesaikan seluruh 6 tahap siklus pencatatan dan penyusutan aset tetap secara komersial dan fiskal.
-                  </p>
-                </div>
-
-                {/* Summary Box */}
-                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 text-left text-xs space-y-2.5">
-                  <h5 className="font-bold text-gray-700 dark:text-gray-200 border-b pb-1">
-                    RINGKASAN SIKLUS ASET
-                  </h5>
-                  <div className="grid grid-cols-2 gap-y-1.5 text-gray-600 dark:text-gray-400">
-                    <span>Nama Aset:</span>
-                    <span className="font-semibold text-right text-gray-800 dark:text-white">{namaAset}</span>
-
-                    <span>Total Harga Perolehan:</span>
-                    <span className="font-semibold text-right text-gray-800 dark:text-white">{formatRupiah(totalPerolehan)}</span>
-
-                    <span>Golongan Pajak:</span>
-                    <span className="font-semibold text-right text-gray-800 dark:text-white">
-                      {GOLONGAN_RULES[selectedGolongan as GolonganKey]?.name || "Kelompok 2"}
-                    </span>
-
-                    <span>Penyusutan SAK Thn 1:</span>
-                    <span className="font-semibold text-right text-gray-800 dark:text-white">{formatRupiah(tabelSAK[0]?.beban || 0)}</span>
-
-                    <span>Penyusutan Pajak Thn 1:</span>
-                    <span className="font-semibold text-right text-gray-800 dark:text-white">{formatRupiah(tabelPajak[0]?.beban || 0)}</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <button
-                    onClick={handleResetAll}
-                    className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-semibold transition shadow-md cursor-pointer"
-                  >
-                    Simulasi Aset Lain
-                  </button>
-                  <button
-                    onClick={() => {
-                      downloadSimulationPDF({
-                        timestamp: new Date().toISOString(),
-                        namaAset,
-                        tanggalBeli,
-                        hargaBeli,
-                        biayaKirim,
-                        biayaBbn,
-                        totalPerolehan,
-                        tanggalPakai,
-                        tanggalMulaiSusut,
-                        selectedGolongan,
-                        metodeSAK,
-                        metodePajak,
-                        nilaiResiduSAK,
-                        masaManfaatSAK,
-                        bebanSAKThn1: tabelSAK[0]?.beban || 0,
-                        bebanPajakThn1: tabelPajak[0]?.beban || 0,
-                        tabelSAK,
-                        tabelPajak
-                      });
-                    }}
-                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold transition shadow-md flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    <Download className="size-3.5" />
-                    Unduh Hasil Laporan (PDF)
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* BOTTOM NAVIGATION CONTROLS */}
-        {!journalSuccess && (
-          <div className="flex justify-between items-center pt-6 border-t border-gray-100 dark:border-gray-800 mt-6">
-            <button
-              onClick={() => setStep(prev => Math.max(1, prev - 1))}
-              disabled={step === 1}
-              className="flex items-center gap-1 px-4 py-2 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg shadow-theme-xs hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
-            >
-              <ArrowLeft className="size-3.5" />
-              Kembali
-            </button>
-
-            <button
-              onClick={() => {
-                const userJson = localStorage.getItem("clickaset_user");
-                if (!userJson) {
-                  window.dispatchEvent(new CustomEvent("show-auth-modal", {
-                    detail: { message: "Ingin melanjutkan simulasi siklus aset ke tahap berikutnya? Yuk, login terlebih dahulu!" }
-                  }));
-                  return;
-                }
-                if (step === 1) {
-                  // Ensure name and purchase price is positive
-                  if (namaAset && hargaBeli > 0) setStep(2);
-                } else if (step === 2) {
-                  // Ensure usage dates are logical
-                  if (tanggalPakai >= tanggalBeli && tanggalMulaiSusut >= tanggalBeli) setStep(3);
-                } else if (step === 3) {
-                  // Ensure a tax group has been attempted
-                  if (selectedGolongan) setStep(4);
-                } else if (step === 4) {
-                  // Continue to calculations
-                  setStep(5);
-                } else if (step === 5) {
-                  // Continue to journal penyesuaian
-                  setStep(6);
-                }
-              }}
-              disabled={
-                (step === 1 && (!namaAset || hargaBeli <= 0 || !truckDone)) ||
-                (step === 2 && (tanggalPakai < tanggalBeli || tanggalMulaiSusut < tanggalBeli)) ||
-                (step === 3 && !selectedGolongan)
-              }
-              className="flex items-center gap-1 px-4 py-2 text-xs font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-lg shadow-theme-xs disabled:opacity-40 disabled:cursor-not-allowed transition"
-            >
-              Lanjut
-              <ArrowRight className="size-3.5" />
-            </button>
-          </div>
-        )}
-
-      </div>
-
-      {/* RIWAYAT SIMULASI SECTION */}
-      <div className="bg-white border border-gray-200 dark:border-gray-800 dark:bg-gray-950 rounded-2xl p-6 shadow-theme-md space-y-6">
-        <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-900 pb-4">
-          <div className="p-2 bg-brand-50 dark:bg-brand-950/30 text-brand-500 rounded-lg">
-            <History className="size-5" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-gray-800 dark:text-white font-heading">
-              Riwayat Simulasi Aset Anda
-            </h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Pantau, muat kembali, atau unduh laporan PDF resmi dari simulasi siklus aset yang telah selesai.
-            </p>
-          </div>
-        </div>
-
-        {(() => {
-          const userJson = localStorage.getItem("clickaset_user");
-          const user = userJson ? JSON.parse(userJson) : null;
-
-          if (user) {
-            if (historyList.length === 0) {
-              return (
-                <div className="text-center py-12 px-4 space-y-3">
-                  <div className="inline-flex items-center justify-center p-3 bg-gray-50 dark:bg-gray-900 rounded-full text-gray-400">
-                    <BookOpen className="size-8" />
-                  </div>
-                  <div className="max-w-md mx-auto space-y-1">
-                    <h4 className="text-sm font-semibold text-gray-800 dark:text-white">Belum Ada Riwayat</h4>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Anda belum menyelesaikan simulasi siklus aset apa pun. Silakan selesaikan 6 tahap simulasi di atas hingga berhasil membuat Jurnal Penyesuaian Akhir Tahun untuk menyimpan riwayat baru secara otomatis.
-                    </p>
-                  </div>
-                </div>
-              );
-            }
-
-            return (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {historyList.map((item) => (
-                  <div 
-                    key={item.id} 
-                    className="border border-gray-100 dark:border-gray-800 rounded-xl p-5 bg-gray-50/30 dark:bg-gray-900/10 space-y-4 hover:shadow-theme-xs transition-all flex flex-col justify-between"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-start">
-                        <h4 className="font-bold text-gray-800 dark:text-white text-sm">
-                          {item.namaAset}
-                        </h4>
-                        <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                          {new Date(item.timestamp).toLocaleDateString("id-ID", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric"
-                          })}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span>Perolehan:</span>
-                        <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
-                          {formatRupiah(item.totalPerolehan)}
-                        </span>
-
-                        <span>Golongan Pajak:</span>
-                        <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
-                          {GOLONGAN_RULES[item.selectedGolongan as GolonganKey]?.name.split(" ")[0] || item.selectedGolongan}
-                        </span>
-
-                        <span>SAK Depr. (Thn 1):</span>
-                        <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
-                          {formatRupiah(item.bebanSAKThn1)}
-                        </span>
-
-                        <span>Pajak Depr. (Thn 1):</span>
-                        <span className="font-semibold text-right text-gray-700 dark:text-gray-300">
-                          {formatRupiah(item.bebanPajakThn1)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-gray-800/80 text-xs">
-                      <button
-                        onClick={() => setSelectedHistoryView(item)}
-                        className="flex-1 py-1.5 bg-brand-50 dark:bg-brand-950/20 text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-950/40 rounded-lg font-semibold transition cursor-pointer text-center"
-                      >
-                        Buka
-                      </button>
-                      <button
-                        onClick={() => downloadSimulationPDF(item)}
-                        className="flex-1 py-1.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 rounded-lg font-semibold transition cursor-pointer flex items-center justify-center gap-1"
-                      >
-                        <Download className="size-3" />
-                        PDF
-                      </button>
-                      <button
-                        onClick={() => handleDeleteHistory(item.id)}
-                        className="p-1.5 border border-red-100 dark:border-red-950/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/10 rounded-lg transition cursor-pointer"
-                        title="Hapus Riwayat"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          } else {
-            return (
-              <div className="text-center py-10 px-4 space-y-4 max-w-sm mx-auto">
-                <div className="inline-flex items-center justify-center p-3 bg-amber-50 dark:bg-amber-950/20 text-amber-500 rounded-full">
-                  <Award className="size-8" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-sm font-semibold text-gray-800 dark:text-white">Riwayat Terkunci</h4>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Silakan masuk/daftar akun terlebih dahulu untuk merekam, melihat riwayat simulasi, dan mengunduh laporan PDF resmi.
-                  </p>
-                </div>
-                <a
-                  href="/signin"
-                  className="inline-block px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-semibold shadow transition"
-                >
-                  Masuk Sekarang
-                </a>
-              </div>
-            );
-          }
-        })()}
-      </div>
-
-      {/* RIWAYAT SIMULASI DETAIL VIEW MODAL */}
-      {selectedHistoryView && (
+      <SimulationSteps
+        step={step}
+        setStep={setStep}
+        namaAset={namaAset}
+        setNamaAset={setNamaAset}
+        tanggalBeli={tanggalBeli}
+        setTanggalBeli={setTanggalBeli}
+        hargaBeli={hargaBeli}
+        setHargaBeli={setHargaBeli}
+        biayaKirim={biayaKirim}
+        setBiayaKirim={setBiayaKirim}
+        biayaBbn={biayaBbn}
+        setBiayaBbn={setBiayaBbn}
+        totalPerolehan={totalPerolehan}
+        hargaBeliInput={hargaBeliInput}
+        setHargaBeliInput={setHargaBeliInput}
+        biayaKirimInput={biayaKirimInput}
+        setBiayaKirimInput={setBiayaKirimInput}
+        biayaBbnInput={biayaBbnInput}
+        setBiayaBbnInput={setBiayaBbnInput}
+        isTruckMoving={isTruckMoving}
+        truckDone={truckDone}
+        runPurchaseSimulation={runPurchaseSimulation}
+        tanggalPakai={tanggalPakai}
+        setTanggalPakai={setTanggalPakai}
+        tanggalMulaiSusut={tanggalMulaiSusut}
+        setTanggalMulaiSusut={setTanggalMulaiSusut}
+        selectedGolongan={selectedGolongan}
+        hasAttemptedGolongan={hasAttemptedGolongan}
+        golonganFeedback={golonganFeedback}
+        handleGuessGolongan={handleGuessGolongan}
+        metodeSAK={metodeSAK}
+        setMetodeSAK={setMetodeSAK}
+        metodePajak={metodePajak}
+        setMetodePajak={setMetodePajak}
+        nilaiResiduSAK={nilaiResiduSAK}
+        setNilaiResiduSAK={setNilaiResiduSAK}
+        masaManfaatSAK={masaManfaatSAK}
+        setMasaManfaatSAK={setMasaManfaatSAK}
+        nilaiResiduSAKInput={nilaiResiduSAKInput}
+        setNilaiResiduSAKInput={setNilaiResiduSAKInput}
+        totalKapasitasJam={totalKapasitasJam}
+        setTotalKapasitasJam={setTotalKapasitasJam}
+        totalKapasitasJamInput={totalKapasitasJamInput}
+        setTotalKapasitasJamInput={setTotalKapasitasJamInput}
+        jamTahun1={jamTahun1}
+        setJamTahun1={setJamTahun1}
+        jamTahun1Input={jamTahun1Input}
+        setJamTahun1Input={setJamTahun1Input}
+        totalKapasitasProduksi={totalKapasitasProduksi}
+        setTotalKapasitasProduksi={setTotalKapasitasProduksi}
+        totalKapasitasProduksiInput={totalKapasitasProduksiInput}
+        setTotalKapasitasProduksiInput={setTotalKapasitasProduksiInput}
+        produksiTahun1={produksiTahun1}
+        setProduksiTahun1={setProduksiTahun1}
+        produksiTahun1Input={produksiTahun1Input}
+        setProduksiTahun1Input={setProduksiTahun1Input}
+        jamKerjaPerTahun={jamKerjaPerTahun}
+        setJamKerjaPerTahun={setJamKerjaPerTahun}
+        jamKerjaPerTahunInput={jamKerjaPerTahunInput}
+        setJamKerjaPerTahunInput={setJamKerjaPerTahunInput}
+        produksiPerTahun={produksiPerTahun}
+        setProduksiPerTahun={setProduksiPerTahun}
+        produksiPerTahunInput={produksiPerTahunInput}
+        setProduksiPerTahunInput={setProduksiPerTahunInput}
+        tabelSAK={tabelSAK}
+        tabelPajak={tabelPajak}
+        chartData={chartData}
+        activeTabTable={activeTabTable}
+        setActiveTabTable={setActiveTabTable}
+        jurnalDebitAkun={jurnalDebitAkun}
+        setJurnalDebitAkun={setJurnalDebitAkun}
+        jurnalDebitNilai={jurnalDebitNilai}
+        setJurnalDebitNilai={setJurnalDebitNilai}
+        jurnalKreditAkun={jurnalKreditAkun}
+        setJurnalKreditAkun={setJurnalKreditAkun}
+        jurnalKreditNilai={jurnalKreditNilai}
+        setJurnalKreditNilai={setJurnalKreditNilai}
+        journalAttempt={journalAttempt}
+        journalSuccess={journalSuccess}
+        journalFeedback={journalFeedback}
+        confettiParticles={confettiParticles}
+        handleVerifyJournal={handleVerifyJournal}
+        downloadSimulationPDF={downloadSimulationPDF}
+        handleResetAll={handleResetAll}
+        formatRupiah={formatRupiah}
+        formatRibuan={formatRibuan}
+        golonganRules={GOLONGAN_RULES}
+        refleksiSaved={refleksiSaved}
+        onSaveReflection={handleSaveReflection}
+      />
+
+      <SimulationHistory
+        user={JSON.parse(localStorage.getItem("clickaset_user") || "null")}
+        historyList={historyList}
+        onLoadHistory={handleLoadHistory}
+        onDeleteHistory={handleDeleteHistory}
+        downloadSimulationPDF={downloadSimulationPDF}
+        formatRupiah={formatRupiah}
+        golonganRules={GOLONGAN_RULES}
+        onRefreshHistory={refreshHistoryList}
+        highlightedId={refleksiSaved ? currentSimHistoryId : undefined}
+      />
+
+      {/* CUSTOM RESET CONFIRMATION MODAL */}
+      {showResetModal && (
         <div className="fixed inset-0 z-99999 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl space-y-6">
-            
-            {/* Modal Header */}
-            <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-800 pb-4">
-              <div>
-                <h3 className="text-lg font-bold text-gray-800 dark:text-white font-heading">
-                  Detail Laporan: {selectedHistoryView.namaAset}
-                </h3>
-                <p className="text-xs text-gray-500">
-                  Riwayat simulasi diselesaikan pada {new Date(selectedHistoryView.timestamp).toLocaleString("id-ID")}
-                </p>
-              </div>
+          <div className="bg-white dark:bg-gray-950 border border-gray-205 dark:border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6">
+            <div className="space-y-2">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white font-heading">
+                Reset Simulasi?
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Apakah Anda yakin ingin me-reset simulasi ini? Semua langkah pengerjaan yang sedang berjalan akan diulang dari awal dan data yang belum disimpan akan hilang.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 text-xs">
               <button
-                onClick={() => setSelectedHistoryView(null)}
-                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-400 hover:text-gray-600 transition cursor-pointer"
+                onClick={() => setShowResetModal(false)}
+                className="px-4 py-2 border border-gray-200 dark:border-gray-800 text-gray-750 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold rounded-lg transition cursor-pointer"
               >
-                ✕
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  handleResetAll();
+                  setShowResetModal(false);
+                }}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition cursor-pointer"
+              >
+                Ya, Reset
               </button>
             </div>
-
-            {/* Modal Body */}
-            <div className="space-y-6 text-sm text-gray-700 dark:text-gray-300">
-              
-              {/* 1. Rincian Aset */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800/80 space-y-2">
-                  <h4 className="font-bold text-brand-500 text-xs uppercase tracking-wider">
-                    Informasi & Biaya Perolehan
-                  </h4>
-                  <div className="grid grid-cols-2 gap-y-1 text-xs">
-                    <span>Nama Aset:</span>
-                    <span className="font-semibold text-right">{selectedHistoryView.namaAset}</span>
-                    <span>Tanggal Perolehan:</span>
-                    <span className="font-semibold text-right">{selectedHistoryView.tanggalBeli}</span>
-                    <span>Harga Beli:</span>
-                    <span className="font-semibold text-right">{formatRupiah(selectedHistoryView.hargaBeli)}</span>
-                    <span>Biaya Kirim:</span>
-                    <span className="font-semibold text-right">{formatRupiah(selectedHistoryView.biayaKirim)}</span>
-                    <span>Biaya BBN / Instalasi:</span>
-                    <span className="font-semibold text-right">{formatRupiah(selectedHistoryView.biayaBbn)}</span>
-                    <span className="font-bold text-gray-800 dark:text-white mt-1">Total Perolehan:</span>
-                    <span className="font-bold text-right text-brand-500 mt-1">{formatRupiah(selectedHistoryView.totalPerolehan)}</span>
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800/80 space-y-2">
-                  <h4 className="font-bold text-brand-500 text-xs uppercase tracking-wider">
-                    Kebijakan Depresiasi (SAK vs Pajak)
-                  </h4>
-                  <div className="grid grid-cols-2 gap-y-1 text-xs">
-                    <span>Metode Akuntansi (SAK):</span>
-                    <span className="font-semibold text-right">{selectedHistoryView.metodeSAK === "GL" ? "Garis Lurus" : "Saldo Menurun"}</span>
-                    <span>Masa Manfaat (SAK):</span>
-                    <span className="font-semibold text-right">{selectedHistoryView.masaManfaatSAK} Tahun</span>
-                    <span>Nilai Residu (SAK):</span>
-                    <span className="font-semibold text-right">{formatRupiah(selectedHistoryView.nilaiResiduSAK)}</span>
-                    <span>Golongan Pajak:</span>
-                    <span className="font-semibold text-right">{GOLONGAN_RULES[selectedHistoryView.selectedGolongan as GolonganKey]?.name || selectedHistoryView.selectedGolongan}</span>
-                    <span>Masa Manfaat Pajak:</span>
-                    <span className="font-semibold text-right">{GOLONGAN_RULES[selectedHistoryView.selectedGolongan as GolonganKey]?.years || 8} Tahun</span>
-                    <span>Metode Pajak:</span>
-                    <span className="font-semibold text-right">{selectedHistoryView.metodePajak === "GL" ? "Garis Lurus" : "Saldo Menurun"}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. Jurnal Penyesuaian */}
-              <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800/80 space-y-3">
-                <h4 className="font-bold text-brand-500 text-xs uppercase tracking-wider">
-                  Jurnal Penyesuaian Akhir Tahun Ke-1
-                </h4>
-                <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden text-xs">
-                  <table className="w-full text-left">
-                    <thead className="bg-gray-100 dark:bg-gray-800 font-semibold text-gray-700 dark:text-gray-300">
-                      <tr>
-                        <th className="p-2 pl-4">Akun</th>
-                        <th className="p-2 text-center">Ref</th>
-                        <th className="p-2 text-right pr-4">Debit</th>
-                        <th className="p-2 text-right pr-4">Kredit</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-medium">
-                      <tr>
-                        <td className="p-2 pl-4 text-gray-800 dark:text-white">Beban Penyusutan Aset Tetap</td>
-                        <td className="p-2 text-center text-gray-500">5-101</td>
-                        <td className="p-2 text-right pr-4 text-gray-800 dark:text-white">{formatRupiah(selectedHistoryView.bebanSAKThn1)}</td>
-                        <td className="p-2 text-right pr-4 text-gray-400">-</td>
-                      </tr>
-                      <tr>
-                        <td className="p-2 pl-8 text-gray-800 dark:text-white">Akumulasi Penyusutan Aset Tetap</td>
-                        <td className="p-2 text-center text-gray-500">1-201</td>
-                        <td className="p-2 text-right pr-4 text-gray-400">-</td>
-                        <td className="p-2 text-right pr-4 text-gray-800 dark:text-white">{formatRupiah(selectedHistoryView.bebanSAKThn1)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* 3. Recharts Chart of Book Value */}
-              {selectedHistoryView.chartData && selectedHistoryView.chartData.length > 0 && (
-                <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800/80 space-y-3">
-                  <h4 className="font-bold text-brand-500 text-xs uppercase tracking-wider">
-                    Grafik Penurunan Nilai Buku
-                  </h4>
-                  <div className="w-full h-[220px] text-[10px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={selectedHistoryView.chartData}>
-                        <XAxis dataKey="year" stroke="#9ca3af" />
-                        <YAxis 
-                          stroke="#9ca3af" 
-                          tickFormatter={(value) => `Rp ${(value / 1000000).toFixed(0)}jt`}
-                        />
-                        <Tooltip 
-                          formatter={(value: any) => formatRupiah(Number(value))}
-                          contentStyle={{ backgroundColor: "#1f2937", border: "none", borderRadius: "8px", color: "#fff" }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="SAK Nilai Buku" 
-                          stroke="#465fff" 
-                          strokeWidth={2}
-                          activeDot={{ r: 6 }} 
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="Pajak Nilai Buku" 
-                          stroke="#10b981" 
-                          strokeWidth={2}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
-
-              {/* 4. Comparative Schedule Table */}
-              {selectedHistoryView.tabelSAK && selectedHistoryView.tabelSAK.length > 0 && (
-                <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100 dark:border-gray-800/80 space-y-3">
-                  <h4 className="font-bold text-brand-500 text-xs uppercase tracking-wider">
-                    Jadwal Penyusutan Komparatif (Tahun ke-1 s/d selesai)
-                  </h4>
-                  <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-x-auto text-[11px]">
-                    <table className="w-full text-left">
-                      <thead className="bg-gray-100 dark:bg-gray-800 font-semibold text-gray-700 dark:text-gray-300">
-                        <tr>
-                          <th className="p-2 text-center">Tahun</th>
-                          <th className="p-2 text-right">Beban Akuntansi (SAK)</th>
-                          <th className="p-2 text-right">Nilai Buku SAK</th>
-                          <th className="p-2 text-right">Beban Pajak (Fiskal)</th>
-                          <th className="p-2 text-right pr-4">Nilai Buku Pajak</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {Array.from({ length: Math.max(selectedHistoryView.tabelSAK.length, selectedHistoryView.tabelPajak?.length || 0) }).map((_, idx) => {
-                          const sakRowObj = selectedHistoryView.tabelSAK?.[idx];
-                          const pajakRowObj = selectedHistoryView.tabelPajak?.[idx];
-                          return (
-                            <tr key={idx} className="hover:bg-gray-100/50 dark:hover:bg-gray-800/20 font-medium">
-                              <td className="p-2 text-center text-gray-500">Tahun {idx + 1}</td>
-                              <td className="p-2 text-right text-gray-800 dark:text-gray-300">{sakRowObj ? formatRupiah(sakRowObj.beban) : "-"}</td>
-                              <td className="p-2 text-right text-brand-600 dark:text-brand-400 font-semibold">{sakRowObj ? formatRupiah(sakRowObj.nilaiBuku) : "-"}</td>
-                              <td className="p-2 text-right text-gray-800 dark:text-gray-300">{pajakRowObj ? formatRupiah(pajakRowObj.beban) : "-"}</td>
-                              <td className="p-2 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-semibold">{pajakRowObj ? formatRupiah(pajakRowObj.nilaiBuku) : "-"}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex flex-col sm:flex-row gap-3 justify-between items-center border-t border-gray-100 dark:border-gray-800 pt-4 text-xs">
-              <button
-                onClick={() => handleLoadHistory(selectedHistoryView)}
-                className="w-full sm:w-auto px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-lg transition cursor-pointer"
-              >
-                Gunakan Parameter di Simulator
-              </button>
-              <div className="flex gap-2 w-full sm:w-auto justify-end">
-                <button
-                  onClick={() => setSelectedHistoryView(null)}
-                  className="px-4 py-2 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold rounded-lg transition cursor-pointer"
-                >
-                  Tutup
-                </button>
-                <button
-                  onClick={() => downloadSimulationPDF(selectedHistoryView)}
-                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg transition flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Download className="size-4" />
-                  Unduh PDF
-                </button>
-              </div>
-            </div>
-
           </div>
         </div>
       )}

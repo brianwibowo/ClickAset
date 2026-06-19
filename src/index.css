@@ -850,3 +850,19 @@ span.flatpickr-weekday,
   animation: zoomIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes pulseOutline {
+  0%, 100% {
+    outline: 2px solid #465fff;
+    box-shadow: 0 0 10px rgba(70, 95, 255, 0.6);
+  }
+  50% {
+    outline: 2px solid transparent;
+    box-shadow: 0 0 0 rgba(70, 95, 255, 0);
+  }
+}
+
+.animate-pulse-outline {
+  animation: pulseOutline 1.5s infinite ease-in-out;
+  border-color: transparent !important;
+}
+
