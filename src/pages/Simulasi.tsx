@@ -564,7 +564,7 @@ const Simulasi: React.FC = () => {
     doc.setFontSize(22);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(59, 145, 155);
-    doc.text("CLICKASET", 15, 23);
+    doc.text("ClickAsset", 15, 23);
 
     // Subtitle
     doc.setFontSize(10);
@@ -580,7 +580,7 @@ const Simulasi: React.FC = () => {
     doc.setFontSize(9);
     doc.setTextColor(120, 120, 120);
     doc.text(`Tanggal: ${formattedDate}`, 195, 23, { align: "right" });
-    doc.text("Author: CLICKASET Education Team", 195, 29, { align: "right" });
+    doc.text("Author: ClickAsset Education Team", 195, 29, { align: "right" });
 
     // Decorative Line
     doc.setDrawColor(200, 200, 200);
@@ -764,13 +764,13 @@ const Simulasi: React.FC = () => {
     doc.setFontSize(7.5);
     doc.setFont("helvetica", "italic");
     doc.setTextColor(150, 150, 150);
-    doc.text("Laporan ini diunduh secara resmi melalui aplikasi CLICKASET.", 15, currentY + 4);
-    doc.text("CLICKASET - Media Interaktif Pembelajaran Siklus Aset Tetap, Golongan Perpajakan, dan Jurnal Penyesuaian.", 15, currentY + 7.5);
+    doc.text("Laporan ini diunduh secara resmi melalui aplikasi ClickAsset.", 15, currentY + 4);
+    doc.text("ClickAsset - Media Interaktif Pembelajaran Siklus Aset Tetap, Golongan Perpajakan, dan Jurnal Penyesuaian.", 15, currentY + 7.5);
 
     doc.setFont("helvetica", "normal");
     doc.text("Dokumen Sah & Digital", 195, currentY + 4, { align: "right" });
     
-    const docFilename = `Laporan_ClickAset_${data.namaAset.replace(/\s+/g, "_")}.pdf`;
+    const docFilename = `Laporan_ClickAsset_${data.namaAset.replace(/\s+/g, "_")}.pdf`;
     doc.save(docFilename);
   };
 
@@ -1022,8 +1022,8 @@ const Simulasi: React.FC = () => {
               {/* Visual Delivery Animation Canvas */}
               <div className="relative h-[250px] bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between p-4 shadow-inner">
                 <div className="flex justify-between items-center text-xs text-slate-400">
-                  <span className="flex items-center gap-1"><Info className="size-3" /> Dealer CLICKASET</span>
-                  <span className="flex items-center gap-1"><Building2 className="size-3" /> PT CLICKASET Jaya</span>
+                  <span className="flex items-center gap-1"><Info className="size-3" /> Dealer ClickAsset</span>
+                  <span className="flex items-center gap-1"><Building2 className="size-3" /> PT ClickAsset Jaya</span>
                 </div>
 
                 {/* Road Canvas */}

@@ -18,7 +18,7 @@ const AppHeader: React.FC = () => {
       case "/kuis":
         return "Kuis Interaktif";
       case "/about":
-        return "Tentang CLICKASET";
+        return "Tentang ClickAsset";
       case "/profile":
         return "Profil Pengguna";
       case "/signin":

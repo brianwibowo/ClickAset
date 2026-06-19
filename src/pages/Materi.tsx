@@ -827,10 +827,13 @@ Aturan Kunci Penyusutan Pajak:
       {/* Welcome Banner Card */}
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white p-6 shadow-theme-sm dark:bg-gray-950">
         <h2 className="font-heading font-semibold text-2xl text-gray-900 dark:text-white">
-          {user ? `Halo, ${user.full_name}! 👋` : "Selamat Datang di CLICKASET! 👋"}
+          {user ? `Halo, ${user.full_name}! 👋` : "Selamat Datang di ClickAsset! 👋"}
         </h2>
-        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 max-w-xl">
-          CLICKASET membantu Anda menguasai pencatatan beban penyesuaian penyusutan aset tetap secara komparatif antara aturan akuntansi komersial (SAK) dan perpajakan (fiskal).
+        <p className="text-brand-600 dark:text-brand-400 text-xs font-mono font-bold mt-1.5 uppercase tracking-wide">
+          Cloud-based Learning Innovation for Comprehensive Knowledge in Asset Simulation
+        </p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mt-2.5 max-w-xl leading-relaxed">
+          ClickAsset membantu Anda menguasai pencatatan beban penyesuaian penyusutan aset tetap secara komparatif antara aturan akuntansi komersial (SAK) dan perpajakan (fiskal).
         </p>
       </div>
 

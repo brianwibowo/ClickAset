@@ -44,6 +44,17 @@ layer(base);
   --color-white: #ffffff;
   --color-black: #101828;
 
+  /* TailAdmin Theme Colors */
+  --color-boxdark: #24303f;
+  --color-boxdark-2: #1a222f;
+  --color-stroke: #e2e8f0;
+  --color-strokedark: #2e3a47;
+  --color-stroke-dark: #2e3a47;
+  --color-form-input: #1d2a3a;
+  --color-form-strokedark: #3d4d60;
+  --color-meta-4: #313d4a;
+  --color-primary: #3c50e0;
+
   --color-brand-25: #f2f7ff;
   --color-brand-50: #ecf3ff;
   --color-brand-100: #dde9ff;
@@ -82,6 +93,7 @@ layer(base);
   --color-gray-800: #1d2939;
   --color-gray-900: #101828;
   --color-gray-950: #0c111d;
+  --color-gray-955: #090d16;
   --color-gray-dark: #1a2231;
 
   --color-orange-25: #fffaf5;
@@ -189,7 +201,7 @@ layer(base);
     cursor: pointer;
   }
   body {
-    @apply relative font-normal font-outfit z-1 bg-gray-50 text-gray-700 dark:text-gray-400;
+    @apply relative font-normal font-outfit z-1 bg-gray-50 dark:bg-boxdark-2 text-gray-700 dark:text-gray-400;
   }
 }
 

@@ -103,7 +103,7 @@ const AppSidebar: React.FC = () => {
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
-        <Link to="/" className="flex items-center gap-3">
+        <Link to="/" className="flex items-center gap-3" title="Cloud-based Learning Innovation for Comprehensive Knowledge in Asset Simulation">
           <img
             src="/images/logo/logo-icon.svg"
             alt="Logo"
@@ -112,7 +112,7 @@ const AppSidebar: React.FC = () => {
           />
           {showLabel && (
             <span className="font-bold text-xl tracking-wide text-gray-900 dark:text-white font-heading">
-              CLICKASET
+              ClickAsset
             </span>
           )}
         </Link>

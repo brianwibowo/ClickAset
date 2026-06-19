@@ -186,7 +186,7 @@ const SignIn: React.FC = () => {
 
         <div className="mb-6">
           <h2 className="font-heading font-semibold text-2xl text-black dark:text-white">
-            {isResetMode ? "Atur Ulang Sandi" : "Masuk CLICKASET"}
+            {isResetMode ? "Atur Ulang Sandi" : "Masuk ClickAsset"}
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {isResetMode

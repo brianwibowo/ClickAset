@@ -15,7 +15,8 @@ import {
   ListOrdered,
   PlusCircle,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  Copy
 } from "lucide-react";
 
 // Types
@@ -153,6 +154,8 @@ const Kuis: React.FC = () => {
   const [myParticipantId, setMyParticipantId] = useState<string>("");
   const [studentAnswers, setStudentAnswers] = useState<{ [questionId: string]: number | null }>({});
   const [correctAnswersCount, setCorrectAnswersCount] = useState<number>(0);
+  const [copied, setCopied] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   
   // Student Quiz playing states
   const [quizState, setQuizState] = useState<{
@@ -283,6 +286,116 @@ const Kuis: React.FC = () => {
     }
   };
 
+  const handleCopyCode = () => {
+    if (!myRoom) return;
+    navigator.clipboard.writeText(myRoom.room_code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const restoreActiveRoom = async (loadedQuestions: Question[]) => {
+    const activeRoomId = sessionStorage.getItem("clickaset_active_room_id");
+    if (!activeRoomId) return;
+
+    try {
+      const { data: dbRoom } = await supabase.from("rooms").select("*").eq("id", activeRoomId).single();
+      if (!dbRoom) {
+        sessionStorage.removeItem("clickaset_active_room_id");
+        sessionStorage.removeItem("clickaset_active_participant_id");
+        return;
+      }
+
+      if (dbRoom.status === "FINISHED") {
+        sessionStorage.removeItem("clickaset_active_room_id");
+        sessionStorage.removeItem("clickaset_active_participant_id");
+        return;
+      }
+
+      setMyRoom(dbRoom);
+
+      const { data: parts } = await supabase.from("participants").select("*").eq("room_id", dbRoom.id).order("score", { ascending: false });
+      if (parts) {
+        setParticipants(parts);
+      }
+
+      const activeParticipantId = sessionStorage.getItem("clickaset_active_participant_id");
+      if (activeParticipantId) {
+        setMyParticipantId(activeParticipantId);
+        
+        const { data: myPart } = await supabase.from("participants").select("*").eq("id", activeParticipantId).single();
+        if (myPart) {
+          const roomQuests = loadedQuestions.filter(q => q.quiz_id === dbRoom.quiz_id);
+          const currentIdx = myPart.current_question_index || 0;
+          const isDone = currentIdx >= roomQuests.length;
+
+          if (dbRoom.status === "LOBBY") {
+            setQuizState({
+              status: "LOBBY",
+              currentIndex: 0,
+              score: 0,
+              selectedOption: null,
+              answered: false,
+              timeLeft: 30,
+              showExplanation: false,
+              earnedPoints: 0
+            });
+          } else if (dbRoom.status === "PLAYING") {
+            if (isDone) {
+              setQuizState(prev => ({
+                ...prev,
+                status: "FINISHED",
+                currentIndex: currentIdx,
+                score: myPart.score
+              }));
+            } else {
+              const currentQuest = roomQuests[currentIdx];
+              setQuizState({
+                status: "PLAYING",
+                currentIndex: currentIdx,
+                score: myPart.score,
+                selectedOption: null,
+                answered: false,
+                timeLeft: currentQuest?.time_limit || 30,
+                showExplanation: false,
+                earnedPoints: 0
+              });
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to restore active room:", err);
+    }
+  };
+
+  // Handle countdown before quiz starts
+  useEffect(() => {
+    if (countdown === null) return;
+
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else {
+      const activeRoomQuests = myRoom ? questions.filter(q => q.quiz_id === myRoom.quiz_id) : [];
+      const firstQuestLimit = activeRoomQuests[0]?.time_limit || 30;
+      
+      setQuizState(prev => ({
+        ...prev,
+        status: "PLAYING",
+        currentIndex: 0,
+        score: 0,
+        selectedOption: null,
+        answered: false,
+        timeLeft: firstQuestLimit,
+        showExplanation: false,
+        earnedPoints: 0
+      }));
+      setCountdown(null);
+    }
+  }, [countdown, myRoom, questions]);
+
   const fetchQuizzesAndQuestions = async () => {
     setLoading(true);
     try {
@@ -290,7 +403,11 @@ const Kuis: React.FC = () => {
       if (qData) setQuizzes(qData);
 
       const { data: questData } = await supabase.from("questions").select("*").order("order_index", { ascending: true });
-      if (questData) setQuestions(questData);
+      if (questData) {
+        setQuestions(questData);
+        // Restore active room session if any
+        await restoreActiveRoom(questData);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -303,9 +420,9 @@ const Kuis: React.FC = () => {
     const { data } = await supabase.from("rooms").select("*").eq("id", myRoom.id).single();
     if (data) {
       setMyRoom(data);
-      if (data.status === "PLAYING" && quizState.status === "LOBBY") {
-        // Start playing for student!
-        setQuizState(prev => ({ ...prev, status: "PLAYING", currentIndex: 0, score: 0 }));
+      if (data.status === "PLAYING" && quizState.status === "LOBBY" && countdown === null) {
+        // Trigger countdown first
+        setCountdown(3);
       }
       if (data.status === "FINISHED") {
         setQuizState(prev => ({ ...prev, status: "FINISHED" }));
@@ -430,6 +547,7 @@ const Kuis: React.FC = () => {
       if (dbRooms) {
         setMyRoom(dbRooms);
         setParticipants([]);
+        sessionStorage.setItem("clickaset_active_room_id", dbRooms.id);
       }
     } catch (err: any) {
       alert("Gagal membuka room kuis: " + err.message);
@@ -513,9 +631,11 @@ const Kuis: React.FC = () => {
       const joinedPart = searchPart && searchPart.length > 0 ? searchPart[0] : null;
       if (joinedPart) {
         setMyParticipantId(joinedPart.id);
+        sessionStorage.setItem("clickaset_active_participant_id", joinedPart.id);
       }
 
       setMyRoom(dbRoom);
+      sessionStorage.setItem("clickaset_active_room_id", dbRoom.id);
       setStudentAnswers({});
       setCorrectAnswersCount(0);
       setQuizState({
@@ -617,6 +737,8 @@ const Kuis: React.FC = () => {
   const handleLeaveRoom = () => {
     setMyRoom(null);
     setMyParticipantId("");
+    sessionStorage.removeItem("clickaset_active_room_id");
+    sessionStorage.removeItem("clickaset_active_participant_id");
     setStudentAnswers({});
     setCorrectAnswersCount(0);
     setQuizState({
@@ -1070,8 +1192,17 @@ const Kuis: React.FC = () => {
             {/* Room Code Banner & Info */}
             <div className="lg:col-span-4 bg-slate-900 border border-slate-800 text-center rounded-xl p-6 flex flex-col justify-center space-y-4">
               <span className="text-xs font-semibold tracking-widest text-slate-400 uppercase">KODE GAME SISWA</span>
-              <div className="text-4xl md:text-5xl font-mono font-bold text-brand-400 tracking-wider">
-                {myRoom.room_code}
+              <div className="flex items-center justify-center gap-3">
+                <span className="text-4xl md:text-5xl font-mono font-bold text-brand-400 tracking-wider">
+                  {myRoom.room_code}
+                </span>
+                <button
+                  onClick={handleCopyCode}
+                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center shrink-0 border-none"
+                  title="Salin Kode Room"
+                >
+                  {copied ? <Check className="size-5 text-emerald-400" /> : <Copy className="size-5" />}
+                </button>
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed px-4">
                 Siswa dapat bergabung dengan masuk ke menu Kuis lalu mengetik kode 6-digit di atas.
@@ -1118,7 +1249,7 @@ const Kuis: React.FC = () => {
               {myRoom.status === "FINISHED" && participants.length > 0 && (
                 <div className="bg-brand-50/30 dark:bg-brand-950/10 border border-brand-100 dark:border-brand-900 p-5 rounded-xl space-y-4 text-center mt-4">
                   <h4 className="font-bold text-brand-800 dark:text-brand-400 text-sm flex items-center justify-center gap-1">
-                    <Award className="size-4.5" /> Live Podium CLICKASET
+                    <Award className="size-4.5" /> Live Podium ClickAsset
                   </h4>
                   <div className="flex justify-center items-end gap-3 pt-6 pb-2">
                     {/* 2nd Place */}
@@ -1219,9 +1350,24 @@ const Kuis: React.FC = () => {
       )}
 
       {/* ---------------------------------------------------- */}
+      {/* CASE D.5: STUDENTS COUNTDOWN SCREEN */}
+      {/* ---------------------------------------------------- */}
+      {!isGuru && myRoom && countdown !== null && (
+        <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 text-center rounded-2xl p-12 space-y-6 shadow-theme-md text-white flex flex-col items-center justify-center min-h-[300px]">
+          <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">KUIS AKAN DIMULAI DALAM</span>
+          <div className="text-8xl font-black text-brand-400 animate-ping">
+            {countdown === 0 ? "GO!" : countdown}
+          </div>
+          <p className="text-sm text-slate-500 font-medium">
+            Bersiaplah menjawab dengan cepat untuk mendapatkan bonus skor!
+          </p>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
       {/* CASE D: STUDENTS WAITING LOBBY */}
       {/* ---------------------------------------------------- */}
-      {!isGuru && myRoom && quizState.status === "LOBBY" && (
+      {!isGuru && myRoom && quizState.status === "LOBBY" && countdown === null && (
         <div className="max-w-md mx-auto bg-white border border-gray-200 dark:border-gray-800 dark:bg-gray-950 rounded-2xl p-8 text-center space-y-6 shadow-theme-md">
           {/* Waiting animated loader */}
           <div className="inline-flex items-center justify-center p-4 bg-brand-50 dark:bg-brand-500/10 rounded-full text-brand-500 animate-pulse mb-2">
@@ -1254,7 +1400,7 @@ const Kuis: React.FC = () => {
       {/* ---------------------------------------------------- */}
       {/* CASE E: STUDENTS PLAYING QUESTION RUNNER */}
       {/* ---------------------------------------------------- */}
-      {!isGuru && myRoom && quizState.status === "PLAYING" && (
+      {!isGuru && myRoom && quizState.status === "PLAYING" && countdown === null && (
         <div className="max-w-2xl mx-auto bg-white border border-gray-200 dark:border-gray-800 dark:bg-gray-950 rounded-2xl p-6 shadow-theme-md space-y-6">
           
           {/* Question Index & Score header */}
