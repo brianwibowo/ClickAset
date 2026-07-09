@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { RotateCcw } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { SimulationSteps } from "../components/simulasi/SimulationSteps";
+import yaySound from "../assets/Yayyy! Sound Effect.mp3";
 import { SimulationHistory } from "../components/simulasi/SimulationHistory";
 import { supabase } from "../utils/supabaseClient";
 import { showLoading, hideLoading } from "../utils/loader";
@@ -567,7 +568,7 @@ const Simulasi: React.FC = () => {
       saveSimulationToHistory();
 
       // Play victory sound effect
-      const audio = new Audio("/src/assets/Yayyy! Sound Effect.mp3");
+      const audio = new Audio(yaySound);
       audio.play().catch(err => console.log("Play audio error:", err));
     }
   };

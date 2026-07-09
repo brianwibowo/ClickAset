@@ -65,6 +65,42 @@ interface StudentQuizPanelProps {
   renderQuizIcon: (name: string) => React.ReactNode;
 }
 
+const CORRECT_MEMES = [
+  { 
+    url: "https://i.imgflip.com/9ehk.jpg", 
+    topText: "JAWABAN BENAR!", 
+    bottomText: "JURNAL LANGSUNG BALANCE ⚖️" 
+  },
+  { 
+    url: "https://i.imgflip.com/26am.jpg", 
+    topText: "MUCH SAK", 
+    bottomText: "VERY DEPRECIATION 🐕" 
+  },
+  { 
+    url: "https://i.imgflip.com/30b1gx.jpg", 
+    topText: "GAYA BIASA: HITUNG MANUAL", 
+    bottomText: "GAYA ELIT: PAKAI CLICKASET 😎" 
+  }
+];
+
+const INCORRECT_MEMES = [
+  { 
+    url: "https://i.imgflip.com/23ls.jpg", 
+    topText: "KETIKA JURNALMU GA BALANCE", 
+    bottomText: "TAPI KAMU TINGGAL PULANG 🥲" 
+  },
+  { 
+    url: "https://i.imgflip.com/2fm6x.jpg", 
+    topText: "APAKAH INI", 
+    bottomText: "BEBAN ATAU ASET TETAP? 🤔" 
+  },
+  { 
+    url: "https://i.imgflip.com/1g8my4.jpg", 
+    topText: "BINGUNG GOLONGAN PAJAK", 
+    bottomText: "KELOMPOK 1 ATAU 2 😰" 
+  }
+];
+
 export const StudentQuizPanel: React.FC<StudentQuizPanelProps> = ({
   user,
   roomCodeInput,
@@ -419,6 +455,51 @@ export const StudentQuizPanel: React.FC<StudentQuizPanelProps> = ({
                       </p>
                     </div>
                   </div>
+
+                  {/* Funny Quizizz Meme Section */}
+                  {(() => {
+                    const isCorrect = quizState.selectedOption === activeRoomQuestions[quizState.currentIndex].correct_option_index;
+                    const memeList = isCorrect ? CORRECT_MEMES : INCORRECT_MEMES;
+                    const meme = memeList[quizState.currentIndex % memeList.length];
+                    return (
+                      <div className="flex flex-col items-center justify-center p-4 bg-gray-55 dark:bg-gray-900/40 rounded-xl border border-gray-150 dark:border-gray-800 animate-zoomIn space-y-3">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                          isCorrect ? "bg-success-50 text-success-700 dark:bg-success-950/40 dark:text-success-400" : "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                        }`}>
+                          {isCorrect ? "Meme Sukses ✨" : "Meme Semangat 💡"}
+                        </span>
+                        
+                        {/* Real Meme Card with Overlaid Impact Text */}
+                        <div className="relative w-56 h-56 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-700 shadow-md select-none shrink-0">
+                          <img 
+                            src={meme.url} 
+                            alt="Meme Kuis" 
+                            className="w-full h-full object-cover" 
+                          />
+                          {/* Top Text */}
+                          <div 
+                            className="absolute top-2.5 left-0 right-0 text-center px-1.5 text-white font-extrabold uppercase tracking-wide text-xs leading-tight"
+                            style={{
+                              fontFamily: "Impact, 'Arial Black', sans-serif",
+                              textShadow: "1.5px 1.5px 0 #000, -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 0 1.5px 0 #000, 1.5px 0 0 #000, 0 -1.5px 0 #000, -1.5px 0 0 #000"
+                            }}
+                          >
+                            {meme.topText}
+                          </div>
+                          {/* Bottom Text */}
+                          <div 
+                            className="absolute bottom-2.5 left-0 right-0 text-center px-1.5 text-white font-extrabold uppercase tracking-wide text-[11px] leading-tight"
+                            style={{
+                              fontFamily: "Impact, 'Arial Black', sans-serif",
+                              textShadow: "1.5px 1.5px 0 #000, -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 0 1.5px 0 #000, 1.5px 0 0 #000, 0 -1.5px 0 #000, -1.5px 0 0 #000"
+                            }}
+                          >
+                            {meme.bottomText}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Next Question Control button */}
                   <div className="flex justify-end pt-2">

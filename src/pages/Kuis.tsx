@@ -790,10 +790,26 @@ const Kuis: React.FC = () => {
         showExplanation: false,
         earnedPoints: 0
       });
+
+      // Sync progress index to Supabase (covers both answered and timeout cases)
+      if (myParticipantId && myRoom?.room_code !== "LATIHAN") {
+        supabase.from("participants")
+          .update({ current_question_index: nextIndex })
+          .eq("id", myParticipantId)
+          .catch((err: any) => console.error("Gagal memperbarui progres kuis:", err));
+      }
     } else {
       // Completed all questions
       setQuizState(prev => ({ ...prev, status: "FINISHED" }));
       
+      // Sync final progress index to Supabase
+      if (myParticipantId && myRoom?.room_code !== "LATIHAN") {
+        supabase.from("participants")
+          .update({ current_question_index: roomQuests.length })
+          .eq("id", myParticipantId)
+          .catch((err: any) => console.error("Gagal memperbarui progres kuis selesai:", err));
+      }
+
       // Save recent activity if it's a dummy quiz
       if (myRoom?.room_code === "LATIHAN" && user) {
         saveRecentActivity(myRoom.quiz_id, correctAnswersCount, roomQuests.length);
