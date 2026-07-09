@@ -679,8 +679,7 @@ const Kuis: React.FC = () => {
       const { data: searchPart } = await supabase.from("participants")
         .select("*")
         .eq("room_id", dbRoom.id)
-        .eq("username", nickname)
-        .order("created_at", { ascending: false });
+        .eq("username", nickname);
 
       const joinedPart = searchPart && searchPart.length > 0 ? searchPart[0] : null;
       if (joinedPart) {

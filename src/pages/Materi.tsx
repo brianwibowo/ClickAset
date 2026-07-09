@@ -584,7 +584,10 @@ Aturan Kunci Penyusutan Pajak:
 
     const serializedBlocks = JSON.stringify(editorBlocks);
     const firstMediaBlock = editorBlocks.find(b => b.type === "video" || b.type === "pdf");
-    const firstMediaUrl = firstMediaBlock ? firstMediaBlock.value : "";
+    let firstMediaUrl = firstMediaBlock ? firstMediaBlock.value : "";
+    if (firstMediaUrl.length > 255) {
+      firstMediaUrl = firstMediaUrl.startsWith("data:") ? "base64-media" : firstMediaUrl.substring(0, 255);
+    }
 
     showLoading("Menyimpan materi pembelajaran...");
     try {
